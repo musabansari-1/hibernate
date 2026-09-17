@@ -1,0 +1,12 @@
+import {spawn} from 'node:child_process';
+import {mkdir,readFile} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+const root=resolve('.validation/vscode');const run=join(root,'run-'+Date.now());await mkdir(join(run,'project'),{recursive:true});
+const downloaded=await readFile('.validation/vscode-executable.txt','utf8').catch(()=>null);
+const exe=process.env.HIBERNATE_TEST_VSCODE??downloaded??join(process.env.LOCALAPPDATA,'Programs/Microsoft VS Code/Code.exe');
+const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data'),HIBERNATE_TEST_HOST:resolve('native/target/debug/hibernate-host.exe'),HIBERNATE_TEST_RESULT:join(root,'results.json')};delete env.ELECTRON_RUN_AS_NODE;
+const child=spawn(exe,['--user-data-dir',join(run,'user'),'--extensions-dir',join(run,'extensions'),'--extensionDevelopmentPath='+resolve('extensions/vscode'),'--extensionTestsPath='+resolve('tests/vscode-runner.cjs'),'--skip-welcome','--skip-release-notes','--disable-gpu','--disable-workspace-trust',join(run,'project')],{env,windowsHide:true,stdio:['ignore','pipe','pipe']});
+let output='';child.stdout.on('data',b=>{output+=b.toString();});child.stderr.on('data',b=>{output+=b.toString();});
+const timer=setTimeout(()=>{child.kill();},120000);
+const code=await new Promise((resolve,reject)=>{child.on('exit',resolve);child.on('error',reject);});clearTimeout(timer);
+if(code!==0){console.error(output);process.exit(code??1);}console.log(await readFile(join(root,'results.json'),'utf8'));

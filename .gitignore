@@ -1,0 +1,8 @@
+node_modules/
+dist/
+target/
+*.vsix
+.validation/
+*.db*
+native-host.json
+apps/desktop/src-tauri/gen/

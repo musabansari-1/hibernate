@@ -1,0 +1,6 @@
+{
+  "name": "project-hibernate", "displayName": "ContextSleep (Private Beta)", "publisher": "project-hibernate", "version": "0.1.0", "engines": { "vscode": "^1.99.0" },
+  "main": "./dist/extension.cjs", "icon": "icon.png", "activationEvents": ["onStartupFinished"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": { "supported": false } },
+  "contributes": { "commands": [{ "command": "hibernate.connect", "title": "ContextSleep: Connect Local Bridge" }, {"command":"hibernate.openProjectTerminal","title":"ContextSleep: Open Instrumented Project Terminal"}], "configuration": { "title": "ContextSleep", "properties": { "hibernate.nativeHostPath": { "type": "string", "default": "", "scope": "machine", "description": "Absolute path to the built hibernate-host.exe. This setting can only be configured locally, never by a workspace." } } } }
+}

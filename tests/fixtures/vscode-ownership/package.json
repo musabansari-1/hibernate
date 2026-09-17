@@ -1,0 +1,8 @@
+{
+  "name": "hibernate-ownership-fixture",
+  "publisher": "hibernate-tests",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.99.0" },
+  "main": "./extension.cjs",
+  "activationEvents": ["onStartupFinished"]
+}

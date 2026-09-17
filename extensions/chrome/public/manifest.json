@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3, "name": "ContextSleep — Private Beta", "version": "0.1.0", "minimum_chrome_version": "120",
+  "description": "Local workspace capture and lazy restoration. Automatic close is restricted to validation pages.",
+  "permissions": ["tabs", "tabGroups", "storage", "nativeMessaging", "downloads", "alarms"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "icons": { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
+  "action": { "default_popup": "popup.html", "default_title": "ContextSleep", "default_icon": { "16": "icon.png", "32": "icon.png" } }, "incognito": "not_allowed",
+  "sandbox": { "pages": ["fixture.html"] },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+}
