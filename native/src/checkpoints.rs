@@ -131,7 +131,7 @@ pub fn import(path: &str) -> R<String> {
         .read_to_string(&mut raw)
         .map_err(|e| e.to_string())?;
     if !raw.starts_with("dpapi:v1:") {
-        return Err("Only Windows-account-protected Project Hibernate backups are accepted".into());
+        return Err("Only Windows-account-protected ContextSleep backups are accepted".into());
     }
     let envelope = crate::protection::decode(&raw)?;
     let mut c = crate::store::open()?;
@@ -340,22 +340,22 @@ fn entries(c: &Connection, project: &str, id: &str) -> R<Vec<Value>> {
         let mut items = Vec::new();
         if let Some(folders) = b["explorer"]["items"].as_array() {
             for (i, f) in folders.iter().enumerate() {
-                items.push(json!({"id":format!("{id}:explorer:{i}"),"snapshotId":id,"kind":"explorer","index":i,"label":format!("Explorer · {}",f["url"].as_str().unwrap_or("Unknown folder"))}));
+                items.push(json!({"id":format!("{id}:explorer:{i}"),"snapshotId":id,"kind":"explorer","index":i,"label":format!("Explorer folder - {}",f["url"].as_str().unwrap_or("Unknown folder"))}));
             }
         }
         if let Some(terminals) = b["terminal"]["items"].as_array() {
             for (i, terminal) in terminals.iter().enumerate() {
                 if let Some(cwd) = terminal["cwd"].as_str() {
-                    items.push(json!({"id":format!("{id}:terminal:{i}"),"snapshotId":id,"kind":"terminal","index":i,"label":format!("Terminal · {cwd}")}));
+                    items.push(json!({"id":format!("{id}:terminal:{i}"),"snapshotId":id,"kind":"terminal","index":i,"label":format!("Terminal - {cwd}")}));
                 }
             }
         } else if b["terminal"]["cwd"].is_string() {
-            items.push(json!({"id":format!("{id}:terminal:0"),"snapshotId":id,"kind":"terminal","index":0,"label":format!("New terminal · {}",b["terminal"]["cwd"].as_str().unwrap_or(""))}));
+            items.push(json!({"id":format!("{id}:terminal:0"),"snapshotId":id,"kind":"terminal","index":0,"label":format!("New terminal - {}",b["terminal"]["cwd"].as_str().unwrap_or(""))}));
         }
         Ok(items)
     } else {
         Ok(vec![
-            json!({"id":id,"snapshotId":id,"kind":s["adapter"],"label":if s["adapter"]=="chrome"{format!("Chrome · {} tabs",b["tabs"].as_array().map_or(0,Vec::len))}else{"VS Code workspace and editors".into()}}),
+            json!({"id":id,"snapshotId":id,"kind":s["adapter"],"label":if s["adapter"]=="chrome"{format!("Chrome - {} tabs",b["tabs"].as_array().map_or(0,Vec::len))}else{"VS Code workspace and editors".into()}}),
         ])
     }
 }
@@ -553,7 +553,7 @@ fn readiness(checkpoint: &Value, body: &Value) -> Value {
             .as_str()
             .or_else(|| capture["client"].as_str())
             .unwrap_or("Application context");
-        facts.push(json!({"capability":format!("Capture · {label}"),"kind":"capture","status":"unverified"}));
+        facts.push(json!({"capability":format!("Capture - {label}"),"kind":"capture","status":"unverified"}));
     }
     json!({"status":if ready{"ready"}else{"incomplete"},"verified":ready,"facts":facts,"checkedAt":crate::now(),"detail":if ready{"Every restorable capability recorded in this checkpoint was reconstructed and reported its required V1 verification evidence."}else{"At least one checkpoint capability was not restored, failed capture, or lacks required verification evidence. Processing completion alone is not project readiness."}})
 }

@@ -1,5 +1,5 @@
 const index = new URL(location.href).searchParams.get('tab') ?? '1';
-document.title = `Validation ${index} · Hibernate`;
+document.title = `Validation page ${index} - ContextSleep`;
 document.querySelector('#title')!.textContent = `Workspace validation page ${index}`;
 const buffer = new Uint8Array(8 * 1024 * 1024);
 buffer.fill(37);

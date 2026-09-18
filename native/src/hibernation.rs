@@ -109,7 +109,7 @@ fn review_body(c: &Connection, id: &str) -> R<Value> {
     }
     if let Some(services) = point["services"].as_array().filter(|v| !v.is_empty()) {
         let status = crate::services::validate_checkpoint_hibernate(services);
-        steps.push(json!({"id":"services","kind":"services","label":"Development services","eligible":status.is_ok(),"state":"retained","detail":status.err().unwrap_or_else(||"Verified Project Hibernate-launched services can be stopped gracefully; no force termination will be used.".into())}));
+        steps.push(json!({"id":"services","kind":"services","label":"Development services","eligible":status.is_ok(),"state":"retained","detail":status.err().unwrap_or_else(||"Services that ContextSleep started and verified can be stopped gracefully. No force termination is used.".into())}));
     }
     Ok(
         json!({"checkpointId":id,"project":project,"steps":steps,"phase":"review","expiresAt":crate::now()+300000,"detail":"Only selected supported windows and verified development services can hibernate. All selected parts are checked before side effects; a failure stops later work."}),

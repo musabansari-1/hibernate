@@ -58,10 +58,19 @@ pub fn desktop_lease() -> Result<Option<DesktopLease>, String> {
             == windows::Win32::Foundation::ERROR_ALREADY_EXISTS;
         let owned = OwnedHandle(handle);
         if exists {
+            // Window titles are matching keys for single-instance focus. The current
+            // ASCII title is tried first; earlier titles stay as fallbacks so an older
+            // window still gets focused instead of a second instance appearing.
             let window = FindWindowW(
                 None,
-                windows::core::w!("ContextSleep · Private Beta"),
+                windows::core::w!("ContextSleep - Private Beta"),
             )
+            .or_else(|_| {
+                FindWindowW(
+                    None,
+                    windows::core::w!("ContextSleep · Private Beta"),
+                )
+            })
             .or_else(|_| {
                 FindWindowW(
                     None,

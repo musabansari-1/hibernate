@@ -68,7 +68,7 @@ export async function activate(context: vscode.ExtensionContext) {
             await refreshTerminalEvidence();
             const state = capture();
             const signals = [...state.folders.map(path => ({ source: 'vscode', label: vscode.workspace.name ?? 'VS Code project', path })), ...state.terminals.filter(t => t.cwd).map(t => ({ source: 'terminal', label: t.name, path: t.cwd }))];
-            const job: Job | null = await rpc(client, 'poll', { adapter: 'vscode', body: { label: 'VS Code', instance:state.instance, signals, items: [{ id: 'workspace', focused:vscode.window.state.focused, title: vscode.workspace.name ?? 'Untitled window', detail: `${state.groups.reduce((n, g) => n + g.tabs.length, 0)} editors · ${state.terminals.length} terminals${state.dirty ? ' · UNSAVED WORK' : ''}`, compatibility: 'Context Restore · reviewed clean close is experimental' }] } });
+            const job: Job | null = await rpc(client, 'poll', { adapter: 'vscode', body: { label: 'VS Code', instance:state.instance, signals, items: [{ id: 'workspace', focused:vscode.window.state.focused, title: vscode.workspace.name ?? 'Untitled window', detail: `${state.groups.reduce((n, g) => n + g.tabs.length, 0)} editors, ${state.terminals.length} terminals${state.dirty ? ' - unsaved work' : ''}`, compatibility: 'Workspace and editors restore; clean close is reviewed' }] } });
             if (job) {
                 let closeRequested=false;
                 try {

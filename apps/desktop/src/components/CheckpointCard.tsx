@@ -1,37 +1,186 @@
-import {useState} from 'react';
-import type {ProjectCheckpoint,HibernationRun} from '../../../../packages/core/model';
+import {useEffect, useState} from 'react';
+import type {ProjectCheckpoint, HibernationRun} from '../../../../packages/core/model';
 import {VerificationResult} from './VerificationResult';
 import {ProjectCloseReview} from './ProjectCloseReview';
-export function CheckpointCard({checkpoint:c,busy,restore,reviewClose,closeReviewed,exportBackup}:{checkpoint:ProjectCheckpoint;busy:boolean;restore(selected:string[],acknowledgedServices:boolean):void;reviewClose():Promise<HibernationRun|undefined>;closeReviewed(reviewId:string,selected:string[]):void;exportBackup():void}){
- const entries=c.body.entries??[];const services=c.body.services??[];
- const [selected,setSelected]=useState<string[]>([]);const [approvedServices,setApprovedServices]=useState(false);
- const [review,setReview]=useState<HibernationRun>();const lastClose=c.hibernations?.[0];
- const latest=c.runs[0];const captured=c.body.captures.filter(v=>v.state==='captured').length;
- const keys=[...entries.map(e=>e.id),...(services.length?['services']:[])];
- function toggle(id:string,checked:boolean){if(id==='services'&&!checked)setApprovedServices(false);setSelected(s=>checked?[...s,id]:s.filter(k=>k!==id));}
- return <article className="snapshot checkpoint">
-  <div className="section-title"><div><h3>{c.body.project?.name??'Project checkpoint'}</h3><small>{new Date(c.created).toLocaleString()}  |  {captured}/{c.body.captures.length} contexts captured</small></div><span className="badge">{c.state}</span></div>
-  {c.body.error&&<p role="alert">{c.body.error}</p>}
-  {c.body.importWarnings?.map((warning,i)=><p key={`import-warning-${i}`} role="status" className="error">Imported checkpoint: {warning}</p>)}
-  {c.body.services?.filter(s=>s.importWarning).map(s=><p key={`service-warning-${s.id}`} role="status" className="error">{s.name}: {s.importWarning}</p>)}
-  {c.body.captures.filter(v=>v.state!=='captured').map((v,i)=><p key={i} className="error">Capture {v.state}: {v.detail??'No completed capture recorded. Individual snapshots may still be available in history.'}</p>)}
-  <div className="actions"><button disabled={busy||c.state==='capturing'} onClick={()=>void reviewClose().then(setReview)}>Review workspace sleep</button><button disabled={busy||c.state==='capturing'} onClick={exportBackup}>Export encrypted checkpoint</button></div>
-  {review&&<ProjectCloseReview review={review} onCancel={()=>setReview(undefined)} onApprove={parts=>{setReview(undefined);closeReviewed(review.id,parts);}}/>}
-  {lastClose&&<div className="project-close-result"><h4>Sleep observations  |  {lastClose.state}</h4><p>{lastClose.state==='closed-selected'?'Selected window disappearance was verified. Review retained contexts and resource observations before considering the whole project put away.':lastClose.state==='blocked'?'Preflight blocked closing. No selected window was closed by this run.':lastClose.state==='interrupted'?'This run was interrupted. Inspect the applications; queued project closes were canceled.':lastClose.state==='partial'?'A close failed or could not be verified. Later windows were not closed.':`Phase: ${lastClose.body.phase}`}</p>
-   {lastClose.body.detail&&<p>{lastClose.body.detail}</p>}
-   {lastClose.body.steps.map(s=><div key={s.id} className="result"><strong>{s.label}</strong><span className="badge">{lastClose.state==='interrupted'&&['checking','closing','ready','pending'].includes(s.state)?'interrupted':s.state.replaceAll('_',' ')}</span><small>{s.detail}</small>{s.result!==undefined&&<VerificationResult value={s.result}/>}</div>)}
-   {lastClose.body.before&&lastClose.body.after&&<div className="measurement"><p>System available memory: {(lastClose.body.before.availablePhysical/1024**3).toFixed(2)}  to  {(lastClose.body.after.availablePhysical/1024**3).toFixed(2)} GiB</p><small>Measured across this close sequence. Other applications and shared processes affect the change; this is not exclusive project RAM.</small></div>}
-  </div>}
-  <p>Select the context to reconstruct. Chrome uses lazy tabs; terminals open a new shell without replaying commands. Offline VS Code workspaces may be opened to reconnect their integration.</p>
-  <div className="checkpoint-parts">{entries.map(e=><label key={e.id}><input type="checkbox" disabled={busy} checked={selected.includes(e.id)} onChange={v=>toggle(e.id,v.target.checked)}/>{e.label}</label>)}
-   {!!services.length&&<label><input type="checkbox" disabled={busy} checked={selected.includes('services')} onChange={v=>toggle('services',v.target.checked)}/>Restart checkpoint services: {services.map(s=>`${s.name} (${s.url})`).join(', ')}</label>}
-  </div>
-  {selected.includes('services')&&<div className="result"><strong>Saved service commands</strong><p>These commands run project code with your Windows account. Review the exact checkpoint definitions before approving restart.</p>{services.map(s=><details key={s.id}><summary>{s.name}</summary><pre>{s.launch?JSON.stringify(s.launch,null,2):'No saved startup definition'}</pre></details>)}<label className="item"><input type="checkbox" disabled={busy||services.some(s=>!s.launch)} checked={approvedServices} onChange={e=>setApprovedServices(e.target.checked)}/><span>I reviewed these saved commands and approve restarting them from this checkpoint.</span></label></div>}
-  <div className="actions"><button disabled={busy||!keys.length} onClick={()=>{setSelected(keys);setApprovedServices(false);}}>Select all parts</button><button className="primary" disabled={busy||!selected.length||c.state==='capturing'||(selected.includes('services')&&!approvedServices)} onClick={()=>restore(selected,approvedServices)}>Restore selected context</button></div>
-  {latest&&<div className="reconstruction"><h4>Restore observations  |  {new Date(latest.created).toLocaleString()}</h4><p>{latest.state==='interrupted'?'Restore was interrupted. Inspect the applications before retrying; completed side effects were not replayed.':latest.state==='running'?'Reconstruction is in progress.':'Processing finished. Review the observed capabilities below to see what is ready.'}</p>
-   {latest.body.readiness&&<div className="result"><strong>Project readiness</strong><span className="badge">{latest.body.readiness.status}</span><p>{latest.body.readiness.detail}</p>{latest.body.readiness.facts.map((fact,i)=><small key={i}>{fact.capability}  |  {fact.status}</small>)}</div>}
-   {latest.body.steps.map(step=><div key={step.id} className="result"><strong>{step.label}</strong><span className="badge">{latest.state==='interrupted'&&['pending','running'].includes(step.state)?'interrupted':step.state}</span>{step.detail&&<p>{step.detail}</p>}{step.result!==undefined&&<VerificationResult value={step.result}/>}</div>)}
-  </div>}
-  <details><summary>Captured project evidence and previous restores</summary><pre>{JSON.stringify({repository:c.body.repository,services,previousRuns:c.runs.slice(1)},null,2)}</pre></details>
- </article>;
+import {ReadyBanner} from './ReadyBanner';
+import {MemoryDelta} from './MemoryGauge';
+import {Badge, Evidence, Icon} from './ui';
+import {captureStateLabel, closeStateLabel, dateTime, plural, relativeTime, stepStateLabel} from '../lib/format';
+
+type Props = {
+  checkpoint: ProjectCheckpoint;
+  busy: boolean;
+  restore(selected: string[], acknowledgedServices: boolean): void;
+  reviewClose(): Promise<HibernationRun | undefined>;
+  closeReviewed(reviewId: string, selected: string[]): void;
+  exportBackup(): void;
+};
+
+const closeSummary: Record<string, string> = {
+  'closed-selected': 'Every selected window was checked, closed and observed to disappear. Anything ContextSleep could not verify was left open.',
+  blocked: 'The final safety check stopped this run. No selected window was closed.',
+  interrupted: 'This run was interrupted. ContextSleep did not replay it - check the applications before retrying.',
+  partial: 'A close could not be verified, so ContextSleep stopped before the remaining windows.',
+  expired: 'This approval was not used in time, so it expired. Nothing was closed. Start a fresh review when you are ready.',
+  review: 'An approval is open and waiting for you. Nothing closes until you confirm it.',
+};
+
+export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, closeReviewed, exportBackup}: Props) {
+  const entries = c.body.entries ?? [];
+  const services = c.body.services ?? [];
+  // Restore only opens things. Parts are pre-selected for convenience; restarting a
+  // saved service command is never pre-selected and still needs explicit approval.
+  const [selected, setSelected] = useState<string[]>(() => entries.map(e => e.id));
+  const [approvedServices, setApprovedServices] = useState(false);
+  const [review, setReview] = useState<HibernationRun>();
+  useEffect(() => {
+    setSelected(current => {
+      const ids = new Set(entries.map(e => e.id));
+      const kept = current.filter(id => ids.has(id) || id === 'services');
+      return kept.length ? kept : entries.map(e => e.id);
+    });
+  }, [c.id, entries.length]);
+
+  const lastClose = c.hibernations?.[0];
+  const latest = c.runs[0];
+  const captured = c.body.captures.filter(v => v.state === 'captured').length;
+  const failedCaptures = c.body.captures.filter(v => v.state !== 'captured');
+  const asleep = lastClose?.state === 'closed-selected' && (!latest || latest.created < lastClose.created);
+  const readiness = latest?.body.readiness;
+  const isReady = !!readiness?.verified && latest?.state !== 'interrupted' && (!lastClose || latest.created > lastClose.created);
+  const restorable = [...entries.map(e => e.id), ...(services.length ? ['services'] : [])];
+  const partsChosen = selected.filter(id => id !== 'services' || approvedServices).length;
+
+  function toggle(id: string, checked: boolean) {
+    if (id === 'services' && !checked) setApprovedServices(false);
+    setSelected(s => checked ? [...new Set([...s, id])] : s.filter(k => k !== id));
+  }
+
+  return <article className={`checkpoint card ${asleep ? 'is-asleep' : ''} ${isReady ? 'is-ready' : ''}`}>
+    <header className="checkpoint-head">
+      <span className="checkpoint-icon" aria-hidden="true"><Icon name="layers" /></span>
+      <div className="checkpoint-title">
+        <strong>{c.body.project?.name ?? 'Workspace checkpoint'}</strong>
+        <small>Captured {relativeTime(c.created)} - {captured} of {c.body.captures.length} contexts saved</small>
+      </div>
+      <Badge tone={asleep ? 'info' : isReady ? 'ready' : c.state === 'capturing' ? 'info' : 'good'} dot>
+        {c.state === 'capturing' ? 'Capturing' : asleep ? 'Asleep' : isReady ? 'Ready' : 'Saved'}
+      </Badge>
+    </header>
+
+    {c.body.error && <p className="inline-alert is-bad" role="alert"><Icon name="alert" />{c.body.error}</p>}
+    {c.body.importWarnings?.map((warning, i) => <p key={`iw-${i}`} className="inline-alert is-warn" role="status"><Icon name="info" />Imported checkpoint: {warning}</p>)}
+    {c.body.services?.filter(s => s.importWarning).map(s => <p key={`sw-${s.id}`} className="inline-alert is-warn" role="status"><Icon name="info" />{s.name}: {s.importWarning}</p>)}
+    {failedCaptures.map((v, i) => <p key={`fc-${i}`} className="inline-alert is-warn" role="status"><Icon name="info" />{captureStateLabel(v.state).label}: {v.detail ?? 'No completed capture recorded. Individual saved contexts may still be available in History.'}</p>)}
+
+    {isReady && readiness && <ReadyBanner detail={readiness.detail} facts={readiness.facts} at={latest?.created} />}
+
+    <div className="checkpoint-lanes">
+      <section className={`lane lane-sleep ${asleep ? '' : 'is-primary'}`}>
+        <h4><Icon name="moon" />Put the workspace to sleep</h4>
+        <p>ContextSleep rechecks every selected window immediately before closing it. If ownership or state cannot be established, that window stays open.</p>
+        <div className="lane-actions">
+          <button type="button" className={`btn ${asleep ? 'btn-quiet' : 'btn-primary'}`} disabled={busy || c.state === 'capturing'} onClick={() => void reviewClose().then(setReview)}>
+            <Icon name="shield" />Review and sleep
+          </button>
+          <button type="button" className="btn btn-ghost" disabled={busy || c.state === 'capturing'} onClick={exportBackup}>Export encrypted copy</button>
+        </div>
+      </section>
+
+      <section className={`lane lane-restore ${asleep ? 'is-primary' : ''}`}>
+        <h4><Icon name="refresh" />Bring it back</h4>
+        <p>Chrome restores tabs lazily. Terminals open a fresh shell without replaying commands. Offline VS Code workspaces are reopened so their integration can reconnect.</p>
+        <ul className="part-list">
+          {entries.map(e => <li key={e.id}>
+            <label>
+              <input type="checkbox" disabled={busy} checked={selected.includes(e.id)} onChange={v => toggle(e.id, v.target.checked)} />
+              <span>{e.label}</span>
+            </label>
+          </li>)}
+          {!!services.length && <li className="part-service">
+            <label>
+              <input type="checkbox" disabled={busy} checked={selected.includes('services')} onChange={v => toggle('services', v.target.checked)} />
+              <span>Restart saved services: {services.map(s => s.name).join(', ')}</span>
+            </label>
+          </li>}
+        </ul>
+        {selected.includes('services') && <div className="service-approval">
+          <strong>These commands run project code under your Windows account.</strong>
+          <p>Review the exact saved definitions before approving a restart.</p>
+          {services.map(s => <Evidence key={s.id} label={s.name}><pre>{s.launch ? JSON.stringify(s.launch, null, 2) : 'No saved startup definition'}</pre></Evidence>)}
+          <label className="consent">
+            <input type="checkbox" disabled={busy || services.some(s => !s.launch)} checked={approvedServices} onChange={e => setApprovedServices(e.target.checked)} />
+            <span>I reviewed these saved commands and approve restarting them.</span>
+          </label>
+        </div>}
+        <div className="lane-actions">
+          <button type="button" className={`btn ${asleep ? 'btn-primary' : 'btn-quiet'}`} disabled={busy || !selected.length || c.state === 'capturing' || (selected.includes('services') && !approvedServices)} onClick={() => restore(selected, approvedServices)}>
+            <Icon name="arrow" />Restore {plural(partsChosen, 'part')}
+          </button>
+          <button type="button" className="btn btn-ghost" disabled={busy || !restorable.length} onClick={() => setSelected(restorable)}>Select everything</button>
+        </div>
+      </section>
+    </div>
+
+    {review && <ProjectCloseReview review={review} onCancel={() => setReview(undefined)} onApprove={parts => {setReview(undefined); closeReviewed(review.id, parts);}} />}
+
+    {lastClose && <section className="run-report">
+      <div className="run-report-head">
+        <h4>{['expired', 'review'].includes(lastClose.state) ? 'Last review' : 'Sleep report'}</h4>
+        <Badge tone={closeStateLabel(lastClose.state).tone}>{closeStateLabel(lastClose.state).label}</Badge>
+        <small>{dateTime(lastClose.created)}</small>
+      </div>
+      <p className="run-summary">{closeSummary[lastClose.state] ?? 'This run finished in an unexpected state. The observations below are what ContextSleep recorded.'}</p>
+      {lastClose.body.detail && <p className="muted-line">{lastClose.body.detail}</p>}
+      {lastClose.body.before && lastClose.body.after && <MemoryDelta before={lastClose.body.before} after={lastClose.body.after} />}
+      <ul className="step-list">
+        {lastClose.body.steps.map(s => {
+          const raw = lastClose.state === 'interrupted' && ['checking', 'closing', 'ready', 'pending'].includes(s.state) ? 'interrupted' : s.state;
+          const state = stepStateLabel(raw);
+          return <li key={s.id}>
+            <div className="step-main"><strong>{s.label}</strong><Badge tone={state.tone}>{state.label}</Badge></div>
+            {s.detail && <small>{s.detail}</small>}
+            {s.result !== undefined && <VerificationResult value={s.result} />}
+          </li>;
+        })}
+      </ul>
+    </section>}
+
+    {latest && <section className="run-report">
+      <div className="run-report-head">
+        <h4>Restore report</h4>
+        <Badge tone={isReady ? 'ready' : latest.state === 'interrupted' ? 'warn' : latest.state === 'running' ? 'info' : 'neutral'}>
+          {isReady ? 'Verified ready' : latest.state === 'interrupted' ? 'Interrupted' : latest.state === 'running' ? 'Restoring' : 'Finished - review evidence'}
+        </Badge>
+        <small>{dateTime(latest.created)}</small>
+      </div>
+      <p className="run-summary">{latest.state === 'interrupted'
+        ? 'Restore was interrupted. Check the applications before retrying; completed side effects were not replayed.'
+        : latest.state === 'running' ? 'Reconstructing the workspace.'
+        : 'Processing finished. The observations below show what actually came back.'}</p>
+      {readiness && !isReady && <div className="readiness-block">
+        <div className="run-report-head"><h5>Workspace readiness</h5><Badge tone={readiness.status === 'ready' ? 'ready' : 'warn'}>{readiness.status}</Badge></div>
+        <p className="muted-line">{readiness.detail}</p>
+        <ul className="fact-list">{readiness.facts.map((fact, i) => {
+          const tone = stepStateLabel(fact.status);
+          return <li key={i}><span className="fact-name">{fact.capability}</span><span className="fact-value"><Badge tone={tone.tone}>{tone.label}</Badge></span></li>;
+        })}</ul>
+      </div>}
+      <ul className="step-list">
+        {latest.body.steps.map(step => {
+          const raw = latest.state === 'interrupted' && ['pending', 'running'].includes(step.state) ? 'interrupted' : step.state;
+          const state = stepStateLabel(raw);
+          return <li key={step.id}>
+            <div className="step-main"><strong>{step.label}</strong><Badge tone={state.tone}>{state.label}</Badge></div>
+            {step.detail && <small>{step.detail}</small>}
+            {step.result !== undefined && <VerificationResult value={step.result} />}
+          </li>;
+        })}
+      </ul>
+    </section>}
+
+    <Evidence label="Captured workspace evidence and earlier restores">
+      <pre>{JSON.stringify({repository: c.body.repository, services, previousRuns: c.runs.slice(1)}, null, 2)}</pre>
+    </Evidence>
+  </article>;
 }

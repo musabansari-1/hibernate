@@ -97,7 +97,7 @@ pub fn import(path: &str) -> R<String> {
         .read_to_string(&mut raw)
         .map_err(|e| e.to_string())?;
     if !raw.starts_with("dpapi:v1:") {
-        return Err("Only Windows-account-protected Project Hibernate backups are accepted".into());
+        return Err("Only Windows-account-protected ContextSleep backups are accepted".into());
     }
     let envelope = crate::protection::decode(&raw)?;
     let mut c = crate::store::open()?;

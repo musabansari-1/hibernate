@@ -393,7 +393,7 @@ pub fn open_chrome_profile(client: &str) -> Result<Value, String> {
         .spawn()
         .map_err(|e| format!("Chrome profile could not be launched: {e}"))?;
     Ok(
-        json!({"status":"launched-unverified","client":client,"profileDirectory":profile,"detail":"Chrome launch requested for the explicitly configured profile. Restore waits for that profile's existing Project Hibernate identity to reconnect before recreating tabs."}),
+        json!({"status":"launched-unverified","client":client,"profileDirectory":profile,"detail":"Chrome launch requested for the explicitly configured profile. Restore waits for that profile's existing ContextSleep identity to reconnect before recreating tabs."}),
     )
 }
 pub fn open_vscode_snapshot(id: &str) -> Result<Value, String> {

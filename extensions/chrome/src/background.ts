@@ -101,7 +101,7 @@ async function tick() {
             return [];
         } });
         const session=await browserSession();
-        const body = { label: `Chrome profile ${profile.slice(0, 8)}`, extensionId:chrome.runtime.id, signals, items: windows.filter(w => !w.incognito).map(w => ({ id: String(w.id), membershipKey:`${session}:${w.id}`, focused:!!w.focused, title: w.tabs?.find(t => t.active)?.title ?? 'Chrome window', detail: `${w.tabs?.length ?? 0} tabs`, compatibility: 'Context Restore · reviewed close · lazy resume' })) };
+        const body = { label: `Chrome profile ${profile.slice(0, 8)}`, extensionId:chrome.runtime.id, signals, items: windows.filter(w => !w.incognito).map(w => ({ id: String(w.id), membershipKey:`${session}:${w.id}`, focused:!!w.focused, title: w.tabs?.find(t => t.active)?.title ?? 'Chrome window', detail: `${w.tabs?.length ?? 0} tabs`, compatibility: 'Tabs, order, pins and groups restore lazily' })) };
         const job = await rpc('poll', { adapter: 'chrome', body });
         await chrome.action.setBadgeText({ text: '' });
         if (job)

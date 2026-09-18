@@ -3,156 +3,474 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="ContextSleep safely puts away supported VS Code, Chrome and development-service context, then reconstructs it with verification." />
-  <meta name="theme-color" content="#0f1713" />
-  <title>ContextSleep — Put your workspace to sleep. Wake up ready.</title>
+  <title>ContextSleep &mdash; Free up RAM without losing your workspace context</title>
+  <meta name="description" content="ContextSleep captures the context that matters, safely closes the supported parts of your Windows workspace, then rebuilds them and verifies what actually came back." />
+  <meta name="theme-color" content="#070d0a" />
+  <meta property="og:title" content="ContextSleep &mdash; Free up RAM without losing your workspace context" />
+  <meta property="og:description" content="Capture first. Close safely. Restore with evidence. A local-first Windows beta." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/assets/icon.png" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/assets/icon.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="page-shell">
-    <nav class="nav wrap" aria-label="Primary navigation">
-      <a class="brand" href="#top"><img src="/assets/icon.png" alt="" /><span>ContextSleep</span></a>
-      <div class="nav-links">
-        <a href="#how">How it works</a>
-        <a href="#proof">Proof</a>
-        <a href="#astra">Built with Astra</a>
-        <a class="nav-cta" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>Download beta</a>
-      </div>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="ContextSleep home">
+      <svg class="logo-mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="csEdge" x1="4" y1="3" x2="28" y2="29" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#8ff9c0" /><stop offset="1" stop-color="#2fc47c" />
+          </linearGradient>
+          <linearGradient id="csMoon" x1="10" y1="12" x2="23" y2="26" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#b6ffd5" /><stop offset="1" stop-color="#4fe294" />
+          </linearGradient>
+          <mask id="csCrescent">
+            <rect width="32" height="32" fill="#000" />
+            <circle cx="16.4" cy="19" r="6.6" fill="#fff" />
+            <circle cx="21.2" cy="15.6" r="5.9" fill="#000" />
+          </mask>
+        </defs>
+        <rect x="2.6" y="3.4" width="26.8" height="25.2" rx="8" fill="#071310" />
+        <rect x="2.6" y="3.4" width="26.8" height="25.2" rx="8" stroke="url(#csEdge)" stroke-width="1.7" />
+        <path d="M3.4 11h25.2" stroke="url(#csEdge)" stroke-width="1.2" opacity=".55" />
+        <circle cx="8" cy="7.2" r="1.35" fill="url(#csEdge)" opacity=".9" />
+        <circle cx="12.6" cy="7.2" r="1.35" fill="url(#csEdge)" opacity=".45" />
+        <rect x="6" y="12" width="20" height="14" fill="url(#csMoon)" mask="url(#csCrescent)" />
+      </svg>
+      <span>ContextSleep</span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#memory">Memory</a>
+      <a href="#safety">Safety</a>
+      <a href="#support">What it supports</a>
+      <a href="#limits">Limits</a>
     </nav>
-
-    <main id="top">
-      <section class="hero wrap">
-        <div class="hero-copy">
-          <p class="eyebrow">WINDOWS PRIVATE BETA · LOCAL-FIRST</p>
-          <h1>Put your workspace to sleep.<br /><em>Wake up ready.</em></h1>
-          <p class="lede">ContextSleep puts a workspace to sleep by saving the context that matters, safely closing supported parts, and reconstructing them later with verification instead of guessing what came back.</p>
-          <div class="hero-actions">
-            <a class="button primary" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>Download Windows beta</a>
-            <a class="button secondary" href="#how">See how it works</a>
-          </div>
-          <div class="proof-pills" aria-label="Product principles">
-            <span>✓ Review before close</span>
-            <span>✓ Verified restore</span>
-            <span>✓ Local workspace data</span>
-          </div>
-          <p class="fineprint">Unsigned private beta for Windows 10/11. No installer or auto-updater yet.</p>
-        </div>
-
-        <div class="hero-card" aria-label="ContextSleep workflow summary">
-          <div class="hero-card-top">
-            <span class="status-dot"></span>
-            <span>Active workspace</span>
-            <strong>Ready to capture</strong>
-          </div>
-          <div class="flow-stack">
-            <div class="flow-row"><span>01</span><div><strong>Connect & assign</strong><small>VS Code + Chrome windows belong to a project.</small></div></div>
-            <div class="flow-row"><span>02</span><div><strong>Capture checkpoint</strong><small>Save reconstructable state before anything closes.</small></div></div>
-            <div class="flow-row"><span>03</span><div><strong>Review & sleep</strong><small>Fresh preflight checks every selected target.</small></div></div>
-            <div class="flow-row success"><span>04</span><div><strong>Restore & verify</strong><small>Observed evidence decides whether the project is ready.</small></div></div>
-          </div>
-          <div class="ready-line"><span>Project readiness</span><strong>VERIFIED READY</strong></div>
-        </div>
-      </section>
-
-      <section class="ticker" aria-label="Validated capabilities">
-        <div class="ticker-inner wrap">
-          <span>VS Code cold restore</span><i></i><span>Chrome profile cold restore</span><i></i><span>Approved Node/Python services</span><i></i><span>Encrypted checkpoints</span><i></i><span>Privacy-safe diagnostics</span>
-        </div>
-      </section>
-
-      <section id="how" class="section wrap">
-        <div class="section-heading">
-          <p class="eyebrow">THE LOOP</p>
-          <h2>Not “reopen some apps.”<br />Reconstruct a workspace with evidence.</h2>
-          <p>ContextSleep separates capture, destructive action and restore into explicit steps. Unsupported or ambiguous targets stay open instead of being guessed.</p>
-        </div>
-        <div class="steps-grid">
-          <article><span class="step-num">01</span><h3>Capture</h3><p>Save supported browser organization, VS Code workspace/editor context, selected folder/terminal context and service expectations into a durable project checkpoint.</p></article>
-          <article><span class="step-num">02</span><h3>Review</h3><p>See what can actually be reconstructed. Dirty work, unsupported states and ambiguous native ownership block automatic close.</p></article>
-          <article><span class="step-num">03</span><h3>Sleep</h3><p>Only reviewed, freshly rechecked targets are closed. A failed or unverified close stops later destructive actions.</p></article>
-          <article><span class="step-num">04</span><h3>Resume</h3><p>Cold-launch the saved Chrome profile and VS Code workspace, restart approved services, then verify each selected capability before reporting ready.</p></article>
-        </div>
-      </section>
-
-      <section id="proof" class="section proof-section">
-        <div class="wrap proof-grid">
-          <div class="proof-copy">
-            <p class="eyebrow">VALIDATED, NOT HAND-WAVED</p>
-            <h2>The packaged lifecycle has passed end to end.</h2>
-            <p>In the current validated flow, one checkpoint closed VS Code, Chrome and a reviewed service, ContextSleep itself restarted, then the saved workspace was cold-restored and overall readiness returned to <strong>ready</strong>.</p>
-            <dl class="metrics">
-              <div><dt>57</dt><dd>Rust unit tests</dd></div>
-              <div><dt>25</dt><dd>TypeScript tests</dd></div>
-              <div><dt>1</dt><dd>real service lifecycle integration</dd></div>
-              <div><dt>100%</dt><dd>final package hash verification</dd></div>
-            </dl>
-            <p class="fineprint">Actual Windows reboot recovery is intentionally not claimed yet.</p>
-          </div>
-          <figure class="screen-frame">
-            <div class="screen-bar"><span></span><span></span><span></span><small>ContextSleep · validated checkpoint</small></div>
-            <img src="/assets/validated-checkpoint.png" alt="ContextSleep checkpoint validation screenshot" />
-            <figcaption>Real validation artifact from the VS Code + Chrome project lifecycle.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section id="astra" class="section wrap astra-section">
-        <div class="astra-badge">GPT-6 ASTRA</div>
-        <div class="astra-copy">
-          <p class="eyebrow">BUILT WITH GPT-6 ASTRA</p>
-          <h2>Astra helped with the parts where guessing would be dangerous.</h2>
-          <p>Astra worked alongside the project on Windows process/window ownership, durable native-close verification, cold-start recovery, service lifecycle design, safety boundaries and end-to-end validation.</p>
-          <div class="case-card">
-            <strong>Example: shared-process VS Code windows</strong>
-            <p>Two VS Code workbenches can share one GUI process. Astra investigated the native HWND/process topology and found no trustworthy supported primitive that mapped the exact integration instance to the exact workbench window. ContextSleep therefore <em>blocks automatic close</em> in that ambiguous case rather than relying on titles, focus state or timing guesses.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section wrap capabilities">
-        <div class="section-heading compact">
-          <p class="eyebrow">PRIVATE BETA SCOPE</p>
-          <h2>Useful now. Deliberately honest about the edges.</h2>
-        </div>
-        <div class="cap-grid">
-          <article class="supported"><span>SUPPORTED</span><h3>VS Code</h3><p>Saved local workspace/editor context, reviewed native close when unambiguous, and cold restore back to the same integration identity.</p></article>
-          <article class="supported"><span>SUPPORTED</span><h3>Chrome</h3><p>Profile-bound capture and cold restore with tab/group verification. Quick Sleep can discard eligible background tabs separately.</p></article>
-          <article class="supported"><span>SUPPORTED</span><h3>Dev services</h3><p>Explicitly reviewed direct Node/Python service definitions with verified ownership, graceful stop and checkpoint-driven restart.</p></article>
-          <article class="context"><span>CONTEXT RESTORE</span><h3>Explorer + terminals</h3><p>Folders and verified instrumented prompt working directories are restored as context. Arbitrary terminal history, panes and commands are never replayed.</p></article>
-        </div>
-      </section>
-
-      <section class="section wrap limits" id="limits">
-        <div>
-          <p class="eyebrow">CURRENT LIMITS</p>
-          <h2>Fail closed beats pretending.</h2>
-        </div>
-        <ul>
-          <li>Windows only for this beta.</li>
-          <li>Actual Windows reboot recovery has not yet been validated.</li>
-          <li>Multiple VS Code workbench windows sharing one GUI process block automatic close.</li>
-          <li>Explorer and arbitrary Windows Terminal windows are Context Restore, not automatic sleep/close.</li>
-          <li>The build is unsigned and uses a portable setup helper rather than a polished installer.</li>
-        </ul>
-      </section>
-
-      <section class="final-cta wrap">
-        <p class="eyebrow">CONTEXTSLEEP 0.1.0 · PRIVATE BETA</p>
-        <h2>Close the workspace.<br /><em>Not the context.</em></h2>
-        <p>Try the Windows beta and tell me which apps and workspace types ContextSleep should support next.</p>
-        <div class="hero-actions centered">
-          <a class="button primary" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>Download Windows beta</a>
-          <a class="button secondary" href="#top">Back to top</a>
-        </div>
-      </section>
-    </main>
-
-    <footer class="wrap footer">
-      <div class="brand"><img src="/assets/icon.png" alt="" /><span>ContextSleep</span></div>
-      <p>Private beta · Windows · Local-first</p>
-      <p>No adapter claims arbitrary application state or full process hibernation.</p>
-    </footer>
+    <a class="btn btn-primary nav-cta" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>Download beta</a>
   </div>
+</header>
+
+<main id="main">
+
+  <!-- ======================================================== hero -->
+  <section class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse-dot" aria-hidden="true"></span>Windows private beta &middot; local-first</p>
+        <h1>Free up RAM<br />without losing<br /><em>your workspace context.</em></h1>
+        <p class="lede">
+          ContextSleep captures the context that matters, safely closes the supported parts of your workspace,
+          then rebuilds them later and checks what actually came back.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.6v7.2" /><path d="m5 7.2 3 3 3-3" /><path d="M3 12.6h10" /></svg>
+            Download for Windows
+          </a>
+          <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+        </div>
+        <ul class="proof-row">
+          <li>Capture first</li>
+          <li>Review before close</li>
+          <li>Verified restore</li>
+          <li>Stays on your PC</li>
+        </ul>
+        <p class="fineprint">Unsigned private beta for Windows 10 and 11. No installer or auto-updater yet.</p>
+      </div>
+
+      <!-- ---------------------------------------- product demo -->
+      <div class="demo" id="demo">
+        <div class="demo-screen" data-frame="0">
+          <div class="demo-chrome">
+            <span class="demo-dot" aria-hidden="true"></span>
+            <span class="demo-title">hibernate</span>
+            <span class="demo-badge" data-demo-badge>Active workspace</span>
+          </div>
+
+          <ul class="demo-apps">
+            <li data-row="vscode">
+              <span class="demo-chip">VS</span>
+              <span class="demo-row-copy"><strong>VS Code</strong><small>hibernate &middot; 14 editors</small></span>
+              <span class="demo-state" data-demo-state="vscode">Open</span>
+            </li>
+            <li data-row="chrome">
+              <span class="demo-chip">Ch</span>
+              <span class="demo-row-copy"><strong>Chrome</strong><small>21 tabs &middot; 3 groups &middot; 2 pinned</small></span>
+              <span class="demo-state" data-demo-state="chrome">Open</span>
+            </li>
+            <li data-row="folder">
+              <span class="demo-chip">Fo</span>
+              <span class="demo-row-copy"><strong>Explorer</strong><small>D:\projects\hibernate</small></span>
+              <span class="demo-state" data-demo-state="folder">Open</span>
+            </li>
+          </ul>
+
+          <div class="demo-memory">
+            <div class="demo-memory-head">
+              <span>System memory available</span>
+              <strong data-demo-memory>5.4 GB</strong>
+            </div>
+            <div class="demo-bar"><i data-demo-bar style="width:34%"></i></div>
+            <p class="demo-note" data-demo-note>Windows reports 5.4 GB of 15.8 GB available.</p>
+          </div>
+        </div>
+
+        <ol class="demo-steps" role="tablist" aria-label="Workspace lifecycle">
+          <li><button type="button" role="tab" data-step="0" aria-selected="true">Active</button></li>
+          <li><button type="button" role="tab" data-step="1" aria-selected="false">Capture</button></li>
+          <li><button type="button" role="tab" data-step="2" aria-selected="false">Review</button></li>
+          <li><button type="button" role="tab" data-step="3" aria-selected="false">Sleep</button></li>
+          <li><button type="button" role="tab" data-step="4" aria-selected="false">Restore</button></li>
+          <li><button type="button" role="tab" data-step="5" aria-selected="false">Ready</button></li>
+        </ol>
+        <p class="demo-caption" data-demo-caption>A workspace you are done with for now: an editor, a browser window and a folder.</p>
+        <p class="demo-disclaimer">Illustration of the ContextSleep lifecycle. The figures are an example, not a promise.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== support strip -->
+  <section class="strip" aria-label="Current coverage">
+    <div class="wrap strip-inner">
+      <p>
+        <strong>Verified sleep and restore today</strong> for VS&nbsp;Code, Chrome and approved local Node or Python services.
+        Explorer folders and instrumented terminals restore as context. Broader app coverage is planned.
+      </p>
+    </div>
+  </section>
+
+  <!-- ======================================================== why -->
+  <section class="section" id="why">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The difference</p>
+        <h2>Reopening apps is not the same<br class="br-lg" />as getting your workspace back.</h2>
+        <p class="section-lede">
+          Anything can relaunch a program. The hard part is knowing what was there, closing only what is safe to close,
+          and proving afterwards that it really came back.
+        </p>
+      </div>
+      <div class="versus">
+        <article class="versus-card is-plain">
+          <h3>Just relaunching apps</h3>
+          <ul>
+            <li>Opens the program and hopes the session restores.</li>
+            <li>Closes whatever matches a window title.</li>
+            <li>No record of what was actually saved.</li>
+            <li>No check that anything came back.</li>
+          </ul>
+        </article>
+        <article class="versus-card is-ours">
+          <h3><span class="card-mark" aria-hidden="true"></span>ContextSleep</h3>
+          <ul>
+            <li>Saves reconstructable context <em>before</em> anything closes.</li>
+            <li>Shows you the exact close plan and rechecks it at the last moment.</li>
+            <li>Leaves anything ambiguous open rather than guessing.</li>
+            <li>Reports what it observed coming back, capability by capability.</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== how -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Capture first. Close safely.<br class="br-lg" />Restore with evidence.</h2>
+      </div>
+      <ol class="steps">
+        <li>
+          <span class="step-num">01</span>
+          <h3>Capture</h3>
+          <p>ContextSleep saves your browser organization, VS&nbsp;Code workspace and editor context, selected folders and terminal working directories, and any service you approved, into one durable local checkpoint.</p>
+          <p class="step-note">Nothing closes at this step.</p>
+        </li>
+        <li>
+          <span class="step-num">02</span>
+          <h3>Review</h3>
+          <p>You see the exact close plan: what is safe to sleep, what will be kept open, and what cannot be reconstructed. Unsaved work, running tasks and ambiguous window ownership all block automatic close.</p>
+          <p class="step-note">You choose every window that may close.</p>
+        </li>
+        <li>
+          <span class="step-num">03</span>
+          <h3>Sleep</h3>
+          <p>Each approved window is rechecked immediately before it closes, then ContextSleep confirms it actually disappeared. A close it cannot verify stops the rest of the sequence instead of continuing.</p>
+          <p class="step-note">Memory is released by the apps that closed.</p>
+        </li>
+        <li>
+          <span class="step-num">04</span>
+          <h3>Restore and verify</h3>
+          <p>Chrome relaunches into the profile you enrolled, VS&nbsp;Code reopens the saved workspace and waits for the same integration identity, and approved services restart only after you review their exact command.</p>
+          <p class="step-note">READY is only shown when every selected capability was observed.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ======================================================== memory -->
+  <section class="section section-alt" id="memory">
+    <div class="wrap memory-grid">
+      <div>
+        <p class="eyebrow">The memory question</p>
+        <h2>We report the reading,<br class="br-lg" />not a marketing number.</h2>
+        <p class="section-lede">
+          ContextSleep records what Windows reports before and after each sleep. On Windows, memory is shared between
+          processes, so no tool can honestly claim an exact figure that belongs to one workspace alone.
+          ContextSleep shows the system observation and says exactly what it means.
+        </p>
+        <ul class="memory-points">
+          <li><strong>What you get:</strong> the signed change in system available memory across the operation.</li>
+          <li><strong>What you also get:</strong> working-set and private-commit readings for the processes involved.</li>
+          <li><strong>What we never say:</strong> &ldquo;ContextSleep saved you exactly X GB.&rdquo;</li>
+        </ul>
+      </div>
+      <figure class="delta-card">
+        <div class="delta-head">
+          <span>System available memory</span>
+          <strong>+1.90 GB</strong>
+        </div>
+        <div class="delta-scale">
+          <span><small>before</small><b>5.40 GB</b></span>
+          <i aria-hidden="true"></i>
+          <span><small>after</small><b>7.30 GB</b></span>
+        </div>
+        <figcaption>
+          System available memory changed by +1.90&nbsp;GB during this operation. Other applications and shared Windows
+          memory also move this number, so it is not an exclusive workspace figure.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================================================== safety -->
+  <section class="section" id="safety">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Safe by design</p>
+        <h2>If ContextSleep cannot safely identify<br class="br-lg" />what to close, it leaves it open.</h2>
+        <p class="section-lede">
+          Every destructive step is gated by something ContextSleep actually observed. There is no window-title matching,
+          no focus guessing, no timing heuristic, and no force-termination of your applications or services.
+        </p>
+      </div>
+
+      <div class="status-row">
+        <span class="status good">Safe to sleep</span>
+        <span class="status warn">Needs review</span>
+        <span class="status warn">Kept open</span>
+        <span class="status good">Restore verified</span>
+        <span class="status ready">Ready</span>
+      </div>
+
+      <div class="safety-grid">
+        <article>
+          <h3>Capture is separate from closing</h3>
+          <p>A window can only be closed after its context has been saved and you have reviewed it. There is no single button that captures and closes in one motion.</p>
+        </article>
+        <article>
+          <h3>Rechecked at the last moment</h3>
+          <p>Approval is single use. Between your approval and the close, ContextSleep checks the target again; anything that changed cancels the run.</p>
+        </article>
+        <article>
+          <h3>Failure stops the sequence</h3>
+          <p>If one close cannot be verified, later closes do not happen. Interrupted work is never replayed automatically after a restart.</p>
+        </article>
+        <article>
+          <h3>Fail closed, always</h3>
+          <p>Unsupported and ambiguous targets stay open and stay visible, even though that means the workspace keeps using memory.</p>
+        </article>
+      </div>
+
+      <div class="case-card">
+        <p class="eyebrow">A real example</p>
+        <h3>Two VS&nbsp;Code windows, one process</h3>
+        <p>
+          Two VS&nbsp;Code workbenches can share a single GUI process. There is no supported Windows primitive that maps the
+          integration instance to the exact workbench window, so ContextSleep cannot prove which window belongs to the workspace.
+          It refuses to close either one and tells you why &mdash; instead of relying on titles, focus order or timing.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== ready -->
+  <section class="section section-alt" id="ready">
+    <div class="wrap ready-grid">
+      <div>
+        <p class="eyebrow">The end of the loop</p>
+        <h2>It checks what<br class="br-lg" />actually came back.</h2>
+        <p class="section-lede">
+          ContextSleep does not just reopen your apps. After a restore, every capability you selected is verified
+          against what the applications report, and READY is a conclusion drawn from that evidence rather than a
+          progress bar that finished.
+        </p>
+      </div>
+      <figure class="ready-card">
+        <div class="ready-card-head">
+          <div class="ready-seal" aria-hidden="true">
+            <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" /><path d="M21 33.5 28.5 41 44 24" /></svg>
+          </div>
+          <div>
+            <p class="ready-kicker">Workspace restored</p>
+            <strong>Ready</strong>
+          </div>
+        </div>
+        <ul class="ready-facts">
+          <li><span>Chrome tabs and groups</span><em>21 of 21</em></li>
+          <li><span>Chrome window organization</span><em>verified</em></li>
+          <li><span>VS Code workspace identity</span><em>verified</em></li>
+          <li><span>Frontend service health</span><em>verified</em></li>
+        </ul>
+        <figcaption>An example of the readiness panel. Each line is an observation recorded during restore.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================================================== screenshot -->
+  <section class="section" id="screens">
+    <div class="wrap">
+      <div class="section-head centered">
+        <p class="eyebrow">The app</p>
+        <h2>See exactly where<br class="br-lg" />your workspace is.</h2>
+      </div>
+      <figure class="shot-frame">
+        <div class="shot-bar"><span></span><span></span><span></span><small>ContextSleep</small></div>
+        <img src="/assets/app-workspace.png" alt="The ContextSleep workspace screen showing the current lifecycle stage, available system memory and the connect, capture, sleep, restore and ready track." width="1600" height="1050" loading="lazy" />
+        <figcaption>The workspace screen, shown with an example workspace. Every number the app displays comes from a live Windows reading.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================================================== local first -->
+  <section class="section section-alt" id="privacy">
+    <div class="wrap privacy-grid">
+      <div>
+        <p class="eyebrow">Local-first</p>
+        <h2>Your workspace stays local.</h2>
+        <p class="section-lede">
+          There is no account, no cloud sync and no telemetry. Captures and checkpoints live in your local application data,
+          and their semantic payloads and exported backups are encrypted for your Windows account.
+        </p>
+      </div>
+      <ul class="privacy-list">
+        <li><strong>No account</strong><span>Nothing to sign up for, nothing to sign in to.</span></li>
+        <li><strong>No cloud</strong><span>Captures never leave the machine that made them.</span></li>
+        <li><strong>No telemetry</strong><span>The support report holds capability and status counts only &mdash; never paths, URLs, titles or commands.</span></li>
+        <li><strong>Your keys</strong><span>Backups are protected to the Windows account that exported them.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ======================================================== support -->
+  <section class="section" id="support">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Coverage</p>
+        <h2>What ContextSleep supports today.</h2>
+        <p class="section-lede">
+          The beta starts where the guarantees can be proven. The goal is ordinary desktop workspaces too, not only
+          developer ones &mdash; but an app only appears here once its sleep and restore behaviour is verified end to end.
+        </p>
+      </div>
+      <div class="support-grid">
+        <article class="supported">
+          <span class="tag">Verified sleep and restore</span>
+          <h3>VS Code</h3>
+          <p>Saved local workspace and editor context, reviewed native close when the window is unambiguous, and cold restore back to the same integration identity.</p>
+        </article>
+        <article class="supported">
+          <span class="tag">Verified sleep and restore</span>
+          <h3>Chrome</h3>
+          <p>Profile-bound capture and cold restore with tab, order, pin and group verification. Quick Sleep can discard eligible background tabs without closing the window.</p>
+        </article>
+        <article class="supported">
+          <span class="tag">Verified sleep and restore</span>
+          <h3>Local dev services</h3>
+          <p>Direct Node or Python services you reviewed explicitly, with observed ownership, graceful stop and checkpoint-driven restart.</p>
+        </article>
+        <article class="context">
+          <span class="tag">Context restore only</span>
+          <h3>Explorer and terminals</h3>
+          <p>Folders and verified instrumented prompt directories reopen as context. ContextSleep never closes an Explorer window and never replays terminal history, panes or commands.</p>
+        </article>
+      </div>
+      <p class="roadmap-note">
+        <strong>Where this is going.</strong> The lifecycle is deliberately app-agnostic: capture, review, close, restore, verify.
+        Broader desktop coverage is the plan, and each new application ships only when its restore can be verified the same way.
+      </p>
+    </div>
+  </section>
+
+  <!-- ======================================================== limits -->
+  <section class="section section-alt" id="limits">
+    <div class="wrap limits-grid">
+      <div>
+        <p class="eyebrow">Current limits</p>
+        <h2>Fail closed beats pretending.</h2>
+        <p class="section-lede">This is a private beta and it is written down honestly.</p>
+      </div>
+      <ul class="limits-list">
+        <li>Windows 10 and 11 only.</li>
+        <li>Actual recovery across a Windows reboot has <strong>not</strong> been validated and is not claimed.</li>
+        <li>Two VS&nbsp;Code workbench windows sharing one GUI process block automatic close.</li>
+        <li>Explorer windows and arbitrary terminals are context restore, never automatic close.</li>
+        <li>The build is unsigned and ships with a portable setup helper rather than a polished installer.</li>
+        <li>Chrome and VS&nbsp;Code integrations are loaded manually for this beta.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ======================================================== astra -->
+  <section class="section" id="astra">
+    <div class="wrap astra-inner">
+      <span class="astra-badge">Built with GPT&#8209;6 Astra</span>
+      <p>
+        Astra worked on the parts of this product where guessing would be dangerous: Windows process and window ownership,
+        durable close verification, cold-start recovery, service lifecycle design and the safety boundaries above.
+        Where it could not find a trustworthy primitive, the answer was to block the action rather than approximate it.
+      </p>
+    </div>
+  </section>
+
+  <!-- ======================================================== cta -->
+  <section class="final-cta">
+    <div class="wrap">
+      <p class="eyebrow">ContextSleep 0.1.0 &middot; private beta</p>
+      <h2>Close the workspace.<br /><em>Not the context.</em></h2>
+      <p class="section-lede">Try it on Windows and tell me which apps and workspace types ContextSleep should cover next.</p>
+      <div class="hero-actions centered">
+        <a class="btn btn-primary btn-lg" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>Download for Windows</a>
+        <a class="btn btn-ghost btn-lg" href="#how">Read how it works</a>
+      </div>
+      <p class="fineprint">Portable folder, no installer. Verify the included SHA256SUMS.json after unzipping.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <a class="brand" href="#top">
+      <svg class="logo-mark" width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="2.6" y="3.4" width="26.8" height="25.2" rx="8" fill="#071310" />
+        <rect x="2.6" y="3.4" width="26.8" height="25.2" rx="8" stroke="url(#csEdge)" stroke-width="1.7" />
+        <path d="M3.4 11h25.2" stroke="url(#csEdge)" stroke-width="1.2" opacity=".55" />
+        <circle cx="8" cy="7.2" r="1.35" fill="url(#csEdge)" opacity=".9" />
+        <rect x="6" y="12" width="20" height="14" fill="url(#csMoon)" mask="url(#csCrescent)" />
+      </svg>
+      <span>ContextSleep</span>
+    </a>
+    <p>Private beta &middot; Windows &middot; local-first</p>
+    <p class="footer-note">No adapter claims arbitrary application state or full process hibernation. Unsupported or ambiguous close targets stay open.</p>
+  </div>
+</footer>
+
+<script src="/demo.js" defer></script>
 </body>
 </html>

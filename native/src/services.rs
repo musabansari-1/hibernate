@@ -97,7 +97,7 @@ fn owned(observation: &Value, identity: &Value) -> bool {
 fn live_owned(body: &Value) -> R<(Value, String)> {
     let run = &body["launchRun"];
     if run["state"] != "verified" || run["verified"] != true {
-        return Err("Only a previously verified Project Hibernate service launch can be stopped automatically.".into());
+        return Err("Only a service that ContextSleep started and verified can be stopped automatically.".into());
     }
     let identity = run["identity"].clone();
     let pid = identity["pid"]

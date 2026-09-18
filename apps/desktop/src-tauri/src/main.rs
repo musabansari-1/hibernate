@@ -109,10 +109,10 @@ fn main() {
             let open=MenuItem::with_id(app,"open","Open ContextSleep",true,None::<&str>)?;
             let project_folder=MenuItem::with_id(app,"project_folder","Open active project folder",true,None::<&str>)?;
             let project_terminal=MenuItem::with_id(app,"project_terminal","Open active project terminal",true,None::<&str>)?;
-            let memory=MenuItem::with_id(app,"memory","Reading Windows memory…",false,None::<&str>)?;
+            let memory=MenuItem::with_id(app,"memory","Reading Windows memory...",false,None::<&str>)?;
             let quit=MenuItem::with_id(app,"quit","Quit ContextSleep",true,None::<&str>)?;
             let menu=Menu::with_items(app,&[&open,&project_folder,&project_terminal,&memory,&quit])?;
-            let mut tray=TrayIconBuilder::with_id("hibernate").tooltip("ContextSleep — your saved contexts").menu(&menu).on_menu_event(|app,event|match event.id.as_ref(){
+            let mut tray=TrayIconBuilder::with_id("hibernate").tooltip("ContextSleep - your saved contexts").menu(&menu).on_menu_event(|app,event|match event.id.as_ref(){
                 "open"=>{if let Some(w)=app.get_webview_window("main"){let _=w.show();let _=w.unminimize();let _=w.set_focus();}},
                 "project_folder"|"project_terminal"=>{let kind=if event.id.as_ref()=="project_folder"{"explorer"}else{"terminal"}.to_string();let handle=app.clone();std::thread::spawn(move||{let opened=store::open().and_then(|c|hibernate_native::projects::active(&c)).ok().and_then(|p|p["projectPath"].as_str().filter(|s|!s.trim().is_empty()).map(str::to_string)).is_some_and(|path|hibernate_native::context::restore_folder(&kind,&path).is_ok());if !opened{if let Some(w)=handle.get_webview_window("main"){let _=w.show();let _=w.unminimize();let _=w.set_focus();}}});},
                 "quit"=>app.exit(0),_=>()});
