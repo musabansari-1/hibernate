@@ -1,6 +1,7 @@
-import * as vscode from 'vscode';
+﻿import * as vscode from 'vscode';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { isAbsolute, basename } from 'node:path';
+import { isAbsolute, basename, join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { randomUUID,createHash } from 'node:crypto';
 import type { Job } from '../../../packages/core/model';
 import {matchedCount,sameEditorGroups} from '../../../packages/core/verification';
@@ -80,7 +81,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             throw new Error('Open a local project folder or saved workspace before capture.');
                         await rpc(client, 'save', { body: state, jobId: job.id });
                         if (job.action === 'hibernate')
-                            throw new Error(state.dirty ? 'Unsaved editors detected. Nothing was closed.' : state.terminals.length ? 'Terminal processes cannot be proven safe to stop. Nothing was closed.' : 'Capture saved. Automatic VS Code close remains blocked until close/restore verification is validated. Use VS Code’s normal close action; native hot exit remains responsible for unsaved buffers.');
+                            throw new Error(state.dirty ? 'Unsaved editors detected. Nothing was closed.' : state.terminals.length ? 'Terminal processes cannot be proven safe to stop. Nothing was closed.' : 'Capture saved. Automatic VS Code close remains blocked until close/restore verification is validated. Use VS Codeâ€™s normal close action; native hot exit remains responsible for unsaved buffers.');
                         await rpc(client, 'complete', { id: job.id, ok: true, result: 'Workspace, editor metadata and available terminal cwd captured. No file contents captured.' });
                     }
                     else if(job.action==='preflight_close'){
@@ -178,9 +179,11 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         if (!vscode.workspace.isTrusted || vscode.env.remoteName)
             throw new Error('Only trusted, local workspaces are supported.');
-        const path = vscode.workspace.getConfiguration('hibernate').get<string>('nativeHostPath') ?? '';
-        if (!isAbsolute(path) || basename(path).toLowerCase() !== 'hibernate-host.exe')
-            throw new Error('Set hibernate.nativeHostPath in User Settings to the absolute hibernate-host.exe path.');
+        const configured = vscode.workspace.getConfiguration('hibernate').get<string>('nativeHostPath') ?? '';
+        const bundled = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'ContextSleep', 'integrations', 'hibernate-host.exe') : '';
+        const path = isAbsolute(configured) && basename(configured).toLowerCase() === 'hibernate-host.exe' ? configured : bundled;
+        if (!path || !isAbsolute(path) || basename(path).toLowerCase() !== 'hibernate-host.exe' || !existsSync(path))
+            throw new Error('ContextSleep native bridge is not installed. Use Connect apps in the ContextSleep desktop app, or set hibernate.nativeHostPath manually.');
         child = spawn(path, ['--vscode'], { windowsHide: true, stdio: 'pipe' });
         let input: Buffer = Buffer.alloc(0);
         child.stdout.on('data', (chunk: Buffer) => {
@@ -222,6 +225,9 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
     const timer = setInterval(() => void tick(), 2000);
     context.subscriptions.push({ dispose() { clearInterval(timer); child?.stdin.end(); } });
-    if (vscode.workspace.getConfiguration('hibernate').get<string>('nativeHostPath'))
+    const configuredHost = vscode.workspace.getConfiguration('hibernate').get<string>('nativeHostPath') ?? '';
+    const bundledHost = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'ContextSleep', 'integrations', 'hibernate-host.exe') : '';
+    if ((configuredHost && existsSync(configuredHost)) || (bundledHost && existsSync(bundledHost)))
         await connect().catch(e => output.appendLine(String(e)));
 }
+

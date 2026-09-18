@@ -23,6 +23,8 @@ npm.cmd run desktop
 
 ## Connect Chrome
 
+**Packaged beta:** use **Connect apps → Prepare Chrome** in the desktop app. ContextSleep opens the exact unpacked-extension folder and `chrome://extensions`; after Chrome shows the extension ID, paste it back into ContextSleep and choose **Finish Chrome setup**. The steps below remain the manual development fallback.
+
 1. Build the extensions with `npm.cmd run build`.
 2. Open `chrome://extensions`, enable Developer mode and load `extensions/chrome/dist` as an unpacked extension.
 3. Copy its extension ID. Register this workspace's native host:
@@ -46,6 +48,8 @@ For ordinary HTTP(S) windows, capture first, then use **Review & sleep** on the 
 For cold restore, explicitly bind the enrolled Chrome profile once in the desktop UI. ContextSleep stores the approved executable/profile-directory binding, can relaunch that exact profile after a ContextSleep restart, waits for the same extension identity to reconnect, and then reconstructs the saved browser context. Removing/reinstalling the extension can invalidate its local profile identity and lazy-tab mappings; do not remove it while relying on saved browser context. Actual recovery across a Windows reboot is still unvalidated.
 
 ## Connect VS Code
+
+**Packaged beta:** use **Connect apps → Install VS Code integration** in the desktop app. ContextSleep installs the packaged VSIX, prepares a stable per-user native bridge, and the extension auto-connects when a trusted local project opens or reloads. `hibernate.nativeHostPath` is now an advanced override rather than a required first-run step.
 
 An installable VSIX can be built using `npm.cmd run vscode:package`. Install the resulting `extensions/vscode/project-hibernate-0.1.0.vsix` through **Extensions: Install from VSIX**.
 

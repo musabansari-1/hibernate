@@ -15,7 +15,15 @@ if($Unregister){
   else {throw 'Registration does not belong to this workspace; no registry key was removed.'}
   exit
 }
-if((Test-Path -LiteralPath $key) -and (Get-Item -LiteralPath $key).GetValue('') -ne $manifestPath){throw 'An existing host registration belongs to another location. No changes made.'}
+if((Test-Path -LiteralPath $key) -and (Get-Item -LiteralPath $key).GetValue('') -ne $manifestPath){
+  $existing=(Get-Item -LiteralPath $key).GetValue('')
+  $sameProduct=$false
+  if($existing -and (Test-Path -LiteralPath $existing -PathType Leaf)){
+    try{$old=Get-Content -LiteralPath $existing -Raw|ConvertFrom-Json; $sameProduct=($old.name -eq 'local.projecthibernate.bridge')}catch{$sameProduct=$false}
+  }
+  if(-not $sameProduct){throw 'An existing native host registration belongs to another application. No changes made.'}
+  Write-Output 'Replacing an older ContextSleep native-host registration with the stable integration location.'
+}
 New-Item -ItemType Directory -Path (Split-Path -Parent $manifestPath) -Force | Out-Null
 $manifest=@{name='local.projecthibernate.bridge';description='ContextSleep local snapshot bridge';path=$resolvedHost;type='stdio';allowed_origins=@("chrome-extension://$ExtensionId/")}
 [IO.File]::WriteAllText($manifestPath,($manifest|ConvertTo-Json),[Text.UTF8Encoding]::new($false))

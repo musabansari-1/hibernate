@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use hibernate_native::store;
 use tauri::Manager;
 #[tauri::command]
@@ -99,6 +99,135 @@ async fn restore_context_item(
 fn open_vscode_snapshot(snapshot_id: String) -> Result<serde_json::Value, String> {
     hibernate_native::context::open_vscode_snapshot(&snapshot_id)
 }
+
+fn integration_repo_root() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..\\..\\..")
+}
+
+fn integration_package_root() -> Result<std::path::PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("Cannot locate ContextSleep executable: {e}"))?;
+    let dir = exe.parent().ok_or("Cannot locate ContextSleep package folder")?.to_path_buf();
+    if dir.join("hibernate-host.exe").is_file() { Ok(dir) } else { Ok(integration_repo_root()) }
+}
+
+fn integration_stable_root() -> Result<std::path::PathBuf, String> {
+    let local = std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is unavailable")?;
+    Ok(std::path::PathBuf::from(local).join("ContextSleep").join("integrations"))
+}
+
+fn copy_tree(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(target).map_err(|e| format!("Cannot create {}: {e}", target.display()))?;
+    for entry in std::fs::read_dir(source).map_err(|e| format!("Cannot read {}: {e}", source.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let from = entry.path();
+        let to = target.join(entry.file_name());
+        if entry.file_type().map_err(|e| e.to_string())?.is_dir() { copy_tree(&from, &to)?; }
+        else { std::fs::copy(&from, &to).map_err(|e| format!("Cannot copy {}: {e}", from.display()))?; }
+    }
+    Ok(())
+}
+
+fn find_vsix(root: &std::path::Path) -> Option<std::path::PathBuf> {
+    std::fs::read_dir(root).ok()?.filter_map(Result::ok).map(|e| e.path())
+        .find(|p| p.extension().and_then(|v| v.to_str()).is_some_and(|v| v.eq_ignore_ascii_case("vsix")) && p.file_name().and_then(|v| v.to_str()).is_some_and(|v| v.to_ascii_lowercase().contains("contextsleep")))
+        .or_else(|| {
+            let dev = integration_repo_root().join("extensions\\vscode");
+            std::fs::read_dir(dev).ok()?.filter_map(Result::ok).map(|e| e.path())
+                .find(|p| p.extension().and_then(|v| v.to_str()).is_some_and(|v| v.eq_ignore_ascii_case("vsix")))
+        })
+}
+
+fn prepare_integration_files() -> Result<serde_json::Value, String> {
+    let root = integration_package_root()?;
+    let stable = integration_stable_root()?;
+    std::fs::create_dir_all(&stable).map_err(|e| e.to_string())?;
+
+    let packaged_host = root.join("hibernate-host.exe");
+    let dev_release_host = integration_repo_root().join("native\\target\\release\\hibernate-host.exe");
+    let dev_debug_host = integration_repo_root().join("native\\target\\debug\\hibernate-host.exe");
+    let host_source = if packaged_host.is_file() { packaged_host } else if dev_release_host.is_file() { dev_release_host } else { dev_debug_host };
+    if !host_source.is_file() { return Err("hibernate-host.exe is missing. Rebuild the ContextSleep package first.".into()); }
+    let host = stable.join("hibernate-host.exe");
+    std::fs::copy(&host_source, &host).map_err(|e| format!("Cannot prepare native bridge: {e}"))?;
+
+    let packaged_chrome = root.join("chrome-extension");
+    let dev_chrome = integration_repo_root().join("extensions\\chrome\\dist");
+    let chrome_source = if packaged_chrome.is_dir() { packaged_chrome } else { dev_chrome };
+    if !chrome_source.is_dir() { return Err("Chrome integration files are missing. Rebuild the ContextSleep package first.".into()); }
+    let chrome = stable.join("chrome-extension");
+    if chrome.exists() { std::fs::remove_dir_all(&chrome).map_err(|e| format!("Cannot refresh Chrome integration folder: {e}"))?; }
+    copy_tree(&chrome_source, &chrome)?;
+
+    let vsix_source = find_vsix(&root).ok_or("ContextSleep VS Code extension (.vsix) is missing")?;
+    let vsix = stable.join("contextsleep-0.1.0.vsix");
+    std::fs::copy(&vsix_source, &vsix).map_err(|e| format!("Cannot prepare VS Code extension: {e}"))?;
+
+    let packaged_script = root.join("scripts\\register-native-host.ps1");
+    let dev_script = integration_repo_root().join("scripts\\register-native-host.ps1");
+    let script_source = if packaged_script.is_file() { packaged_script } else { dev_script };
+    let scripts = stable.join("scripts");
+    std::fs::create_dir_all(&scripts).map_err(|e| e.to_string())?;
+    let script = scripts.join("register-native-host.ps1");
+    std::fs::copy(&script_source, &script).map_err(|e| format!("Cannot prepare Chrome registration helper: {e}"))?;
+
+    Ok(serde_json::json!({"root":stable,"hostPath":host,"chromeExtensionPath":chrome,"vsixPath":vsix,"registrationScript":script}))
+}
+
+#[tauri::command]
+fn prepare_chrome_integration() -> Result<serde_json::Value, String> {
+    let info = prepare_integration_files()?;
+    let folder = info["chromeExtensionPath"].as_str().ok_or("Prepared Chrome folder is unavailable")?;
+    let _ = std::process::Command::new("explorer.exe").arg(folder).spawn();
+    let candidates = [
+        std::env::var_os("PROGRAMFILES").map(std::path::PathBuf::from).map(|p| p.join("Google\\Chrome\\Application\\chrome.exe")),
+        std::env::var_os("PROGRAMFILES(X86)").map(std::path::PathBuf::from).map(|p| p.join("Google\\Chrome\\Application\\chrome.exe")),
+        std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).map(|p| p.join("Google\\Chrome\\Application\\chrome.exe")),
+    ];
+    if let Some(chrome) = candidates.into_iter().flatten().find(|p| p.is_file()) {
+        let _ = std::process::Command::new(chrome).arg("chrome://extensions/").spawn();
+    } else {
+        let _ = std::process::Command::new("cmd.exe").args(["/C", "start", "", "chrome://extensions/"]).spawn();
+    }
+    Ok(info)
+}
+
+#[tauri::command]
+fn register_chrome_integration(extension_id: String) -> Result<serde_json::Value, String> {
+    let id = extension_id.trim().to_ascii_lowercase();
+    if id.len() != 32 || !id.chars().all(|c| ('a'..='p').contains(&c)) { return Err("Paste the 32-character Chrome extension ID shown on chrome://extensions.".into()); }
+    let info = prepare_integration_files()?;
+    let script = info["registrationScript"].as_str().ok_or("Registration helper is unavailable")?;
+    let host = info["hostPath"].as_str().ok_or("Native bridge is unavailable")?;
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-ExtensionId", &id, "-HostPath", host])
+        .output().map_err(|e| format!("Cannot run Chrome setup: {e}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(if detail.is_empty() { stdout } else { detail });
+    }
+    Ok(serde_json::json!({"registered":true,"extensionId":id,"hostPath":host,"detail":"Chrome bridge registered. In Chrome, click the ContextSleep extension and choose Connect / refresh."}))
+}
+
+#[tauri::command]
+fn install_vscode_integration() -> Result<serde_json::Value, String> {
+    let info = prepare_integration_files()?;
+    let vsix = info["vsixPath"].as_str().ok_or("VS Code extension package is unavailable")?.to_string();
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") { candidates.push(std::path::PathBuf::from(local).join("Programs\\Microsoft VS Code\\bin\\code.cmd")); }
+    if let Some(program_files) = std::env::var_os("PROGRAMFILES") { candidates.push(std::path::PathBuf::from(program_files).join("Microsoft VS Code\\bin\\code.cmd")); }
+    if let Some(program_files) = std::env::var_os("PROGRAMFILES(X86)") { candidates.push(std::path::PathBuf::from(program_files).join("Microsoft VS Code\\bin\\code.cmd")); }
+    let output = if let Some(code) = candidates.into_iter().find(|p| p.is_file()) {
+        std::process::Command::new(code).args(["--install-extension", &vsix, "--force"]).output()
+    } else {
+        std::process::Command::new("cmd.exe").args(["/C", "code", "--install-extension", &vsix, "--force"]).output()
+    }.map_err(|e| format!("Could not start the VS Code installer: {e}. Install the VSIX manually if VS Code is not on PATH."))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if detail.is_empty() { "VS Code extension installation failed. Install the packaged VSIX manually.".into() } else { detail });
+    }
+    Ok(serde_json::json!({"installed":true,"hostPath":info["hostPath"],"detail":"VS Code integration installed. Open or reload a trusted local project; ContextSleep will connect automatically."}))
+}
 fn main() {
     let Some(_lease)=hibernate_native::platform::desktop_lease().expect("Cannot establish desktop instance ownership") else {return;};
     tauri::Builder::default()
@@ -152,8 +281,12 @@ fn main() {
             capture_context,
             restore_folder,
             restore_context_item,
-            open_vscode_snapshot
+            open_vscode_snapshot,
+            prepare_chrome_integration,
+            register_chrome_integration,
+            install_vscode_integration
         ])
         .run(tauri::generate_context!())
         .expect("Cannot start ContextSleep");
 }
+

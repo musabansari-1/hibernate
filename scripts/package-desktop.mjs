@@ -40,7 +40,7 @@ SETUP.ps1 makes no changes when run without switches. After loading the Chrome e
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\SETUP.ps1 -InstallVSCode -RegisterChrome -ChromeExtensionId YOUR_EXTENSION_ID -Launch
 \`\`\`
 
-Chrome extension loading remains manual and VS Code still requires the user setting hibernate.nativeHostPath to point to this folder's hibernate-host.exe. Run SETUP.ps1 without switches to see the available actions.
+Chrome still requires one manual browser-security step: load the prepared unpacked extension folder in chrome://extensions and copy its extension ID. The desktop app can prepare that folder and register the local bridge after you paste the ID. VS Code setup now installs the packaged VSIX and prepares a stable local bridge automatically; hibernate.nativeHostPath remains available as an advanced override. Run SETUP.ps1 without switches to see the command-line alternatives.
 
 ## Chrome integration
 
@@ -56,7 +56,7 @@ The script registers only this host and extension for your account. It refuses t
 
 ## VS Code integration
 
-Install contextsleep-${version}.vsix with Extensions: Install from VSIX. In User Settings, set hibernate.nativeHostPath to the absolute path of this folder's hibernate-host.exe. Open a trusted local repository and run ContextSleep: Connect Local Bridge.
+Open ContextSleep and use **Connect apps → Install VS Code integration**. ContextSleep installs contextsleep-${version}.vsix and prepares a stable local bridge under your Windows profile. Open or reload a trusted local repository and the extension auto-connects. Advanced users can still set hibernate.nativeHostPath manually to override the bridge path.
 
 ContextSleep: Open Instrumented Project Terminal creates a no-profile PowerShell shell that reports its working directory. Existing arbitrary terminal commands are never replayed. Reviewed clean VS Code close can be verified when its workbench window is unambiguous and its GUI process exits. Multiple workbench windows sharing a process block reviewed closure.
 

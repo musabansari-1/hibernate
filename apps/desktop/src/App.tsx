@@ -57,6 +57,8 @@ export function App() {
   const [checkpointBackupPath, setCheckpointBackupPath] = useState('');
   const [dismissedRecovery, setDismissedRecovery] = useState(() => localStorage.getItem('hibernate-recovery-dismissed') ?? '');
   const [includeContext, setIncludeContext] = useState(false);
+  const [chromeExtensionId, setChromeExtensionId] = useState('');
+  const [chromePreparedPath, setChromePreparedPath] = useState('');
 
   async function refresh() {
     if (!isTauri()) return;
@@ -148,6 +150,28 @@ export function App() {
     goTo('checkpoint');
   }
 
+  async function prepareChrome() {
+    await act(async () => {
+      const info = await invoke<{chromeExtensionPath: string}>('prepare_chrome_integration');
+      setChromePreparedPath(info.chromeExtensionPath);
+      setNotice('Chrome setup opened. In chrome://extensions choose Load unpacked, select the opened folder, then paste its extension ID below.');
+    });
+  }
+
+  async function finishChrome() {
+    await act(async () => {
+      const result = await invoke<{detail: string}>('register_chrome_integration', {extensionId: chromeExtensionId});
+      setNotice(result.detail);
+    });
+  }
+
+  async function installVSCode() {
+    await act(async () => {
+      const result = await invoke<{detail: string}>('install_vscode_integration');
+      setNotice(result.detail);
+    });
+  }
+
   function goTo(id: string, nextView: View = 'workspace') {
     setView(nextView);
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({behavior: 'smooth', block: 'start'}));
@@ -165,6 +189,8 @@ export function App() {
   const recoveryKey = data ? interruptedRecoveryKey(data) : '';
   const showRecovery = !!recoveryKey && recoveryKey !== dismissedRecovery;
   const liveIntegrations = integrations.filter(r => connected(r.client)).length;
+  const chromeConnected = integrations.some(r => r.adapter === 'chrome' && connected(r.client));
+  const vscodeConnected = integrations.some(r => r.adapter === 'vscode' && connected(r.client));
   const assignedWindows = data?.memberships.filter(m => m.projectId === projectId).length ?? 0;
   const checkpoint = data?.checkpoints[0];
   const checkpointCount = data?.checkpoints.length ?? 0;
@@ -310,6 +336,59 @@ export function App() {
         <div className="hero-meter"><MemoryGauge memory={memory} delta={sleepDelta} /></div>
       </div>
       <StageRail stages={stages} onSelect={key => goTo(key === 'connect' || key === 'capture' ? 'apps' : 'checkpoint')} />
+    </section>
+
+    <section id="integrations-setup" className="block integrations-setup" aria-labelledby="connect-apps-title">
+      <SectionHead
+        eyebrow="Connect apps"
+        id="connect-apps-title"
+        title="Connect Chrome and VS Code"
+        description="Set up each integration once. ContextSleep watches the connection live, so a card turns green only when the app is actually reporting."
+      />
+      <div className="integration-setup-grid">
+        <Card className={`integration-setup-card ${chromeConnected ? 'is-connected' : ''}`}>
+          <div className="integration-setup-head">
+            <span className="app-chip" data-app="chrome" aria-hidden="true">Ch</span>
+            <div><h3>Chrome</h3><p>Tabs, order, pins, groups and reviewed close/restore.</p></div>
+            <Badge tone={chromeConnected ? 'good' : 'neutral'} dot>{chromeConnected ? 'Connected' : 'Not connected'}</Badge>
+          </div>
+          {chromeConnected ? <p className="integration-success"><Icon name="check" />Chrome is reporting to ContextSleep.</p> : <>
+            <ol className="integration-steps">
+              <li><strong>Prepare the extension</strong><span>ContextSleep opens Chrome's extensions page and the exact folder you need.</span></li>
+              <li><strong>Click Load unpacked</strong><span>Select the folder ContextSleep opened. Chrome will show a 32-character extension ID.</span></li>
+              <li><strong>Finish the connection</strong><span>Paste that ID below. ContextSleep registers the local bridge for you.</span></li>
+            </ol>
+            <div className="integration-actions">
+              <button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void prepareChrome()}><Icon name="folder" />Prepare Chrome</button>
+              {chromePreparedPath && <small className="integration-path">Folder: {chromePreparedPath}</small>}
+            </div>
+            <div className="integration-id-row">
+              <label>Chrome extension ID<input value={chromeExtensionId} onChange={e => setChromeExtensionId(e.target.value.trim())} placeholder="32-character ID from chrome://extensions" /></label>
+              <button type="button" className="btn btn-quiet" disabled={busy || !isTauri() || chromeExtensionId.length !== 32} onClick={() => void finishChrome()}>Finish Chrome setup</button>
+            </div>
+            <small className="muted-line">After registration, click the ContextSleep extension in Chrome and choose Connect / refresh. This card will turn green automatically.</small>
+          </>}
+        </Card>
+
+        <Card className={`integration-setup-card ${vscodeConnected ? 'is-connected' : ''}`}>
+          <div className="integration-setup-head">
+            <span className="app-chip" data-app="vscode" aria-hidden="true">VS</span>
+            <div><h3>VS Code</h3><p>Workspace, editors and verified working-directory context.</p></div>
+            <Badge tone={vscodeConnected ? 'good' : 'neutral'} dot>{vscodeConnected ? 'Connected' : 'Not connected'}</Badge>
+          </div>
+          {vscodeConnected ? <p className="integration-success"><Icon name="check" />VS Code is reporting to ContextSleep.</p> : <>
+            <ol className="integration-steps">
+              <li><strong>Install the integration</strong><span>ContextSleep installs the packaged VS Code extension and a stable local bridge.</span></li>
+              <li><strong>Open a trusted local project</strong><span>The integration connects automatically. If VS Code was already open, reload its window once.</span></li>
+            </ol>
+            <div className="integration-actions">
+              <button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void installVSCode()}><Icon name="download" />Install VS Code integration</button>
+            </div>
+            <small className="muted-line">Advanced users can still override the bridge with the existing hibernate.nativeHostPath setting.</small>
+          </>}
+        </Card>
+      </div>
+      {!isTauri() && <p className="muted-line">Integration installation is available from the ContextSleep desktop app, not this browser preview.</p>}
     </section>
 
     <section id="apps" className="block" aria-labelledby="apps-title">
