@@ -32,27 +32,33 @@ Run **ContextSleep.exe** on Windows 10/11 with WebView2 and Windows Terminal ins
 
 ContextSleep is a local-first private beta for putting away supported development-workspace context and reconstructing it with verification. The packaged VS Code + Chrome + approved-service lifecycle has passed end to end. This build is unsigned; Explorer and arbitrary terminal windows are Context Restore only, ambiguous close targets stay open, and actual Windows reboot recovery is not yet validated. No adapter claims arbitrary app state or full process hibernation. Review SAFETY.md. Closing the dashboard hides it to the tray; use the tray's Quit action to exit.
 
-## Optional setup helper
+## Fast app setup
 
-SETUP.ps1 makes no changes when run without switches. After loading the Chrome extension folder and copying its ID, you can explicitly ask it to install the packaged VSIX, register this package's native host, and launch the desktop:
+The easiest path is inside ContextSleep: choose **Connect apps -> Set up apps automatically**. ContextSleep installs the packaged VS Code extension, prepares the stable local bridge, pre-registers Chrome for the bundled stable extension ID, opens chrome://extensions, and opens the exact extension folder.
+
+Chrome still requires one browser-security confirmation: enable Developer mode, click **Load unpacked**, and select the folder ContextSleep opened. No extension-ID copy/paste and no manual Connect/refresh step are required; the extension reconnects automatically after Chrome loads it.
+
+SETUP.ps1 remains an optional command-line fallback. It uses the same stable Chrome extension ID automatically:
 
 \`\`\`powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\SETUP.ps1 -InstallVSCode -RegisterChrome -ChromeExtensionId YOUR_EXTENSION_ID -Launch
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\SETUP.ps1 -InstallVSCode -RegisterChrome -Launch
 \`\`\`
 
-Chrome still requires one manual browser-security step: load the prepared unpacked extension folder in chrome://extensions and copy its extension ID. The desktop app can prepare that folder and register the local bridge after you paste the ID. VS Code setup now installs the packaged VSIX and prepares a stable local bridge automatically; hibernate.nativeHostPath remains available as an advanced override. Run SETUP.ps1 without switches to see the command-line alternatives.
+Run SETUP.ps1 without switches to see the available fallback actions.
 
 ## Chrome integration
 
-1. In chrome://extensions, enable Developer mode and load the chrome-extension folder.
-2. Copy its 32-character extension ID.
-3. From PowerShell in this folder, run the following with your extension ID:
+1. Prefer **Connect apps -> Set up apps automatically** in ContextSleep.
+2. When Chrome opens chrome://extensions, enable Developer mode and click **Load unpacked**.
+3. Select the chrome-extension folder ContextSleep opened. The local bridge is already registered for the bundled stable ID and the extension connects automatically.
+
+Advanced/manual fallback only:
 
 \`\`\`powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\register-native-host.ps1 -ExtensionId YOUR_EXTENSION_ID -HostPath .\\hibernate-host.exe
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\register-native-host.ps1 -ExtensionId lilgdmjjanejoihlpegfklkfaofebfhn -HostPath .\\hibernate-host.exe
 \`\`\`
 
-The script registers only this host and extension for your account. It refuses to replace another installation's registration. Use the same command with -Unregister to remove this registration before moving the folder. Existing snapshots remain in your local application data.
+The script registers only this host and extension for your account. It refuses to replace another application's registration. Existing snapshots remain in your local application data.
 
 ## VS Code integration
 

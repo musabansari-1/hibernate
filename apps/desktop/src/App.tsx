@@ -57,7 +57,7 @@ export function App() {
   const [checkpointBackupPath, setCheckpointBackupPath] = useState('');
   const [dismissedRecovery, setDismissedRecovery] = useState(() => localStorage.getItem('hibernate-recovery-dismissed') ?? '');
   const [includeContext, setIncludeContext] = useState(false);
-  const [chromeExtensionId, setChromeExtensionId] = useState('');
+
   const [chromePreparedPath, setChromePreparedPath] = useState('');
   const [connectionsOpen, setConnectionsOpen] = useState(false);
 
@@ -153,16 +153,9 @@ export function App() {
 
   async function prepareChrome() {
     await act(async () => {
-      const info = await invoke<{chromeExtensionPath: string}>('prepare_chrome_integration');
+      const info = await invoke<{chromeExtensionPath: string; detail?: string}>('prepare_chrome_integration');
       setChromePreparedPath(info.chromeExtensionPath);
-      setNotice('Chrome setup opened. In chrome://extensions choose Load unpacked, select the opened folder, then paste its extension ID below.');
-    });
-  }
-
-  async function finishChrome() {
-    await act(async () => {
-      const result = await invoke<{detail: string}>('register_chrome_integration', {extensionId: chromeExtensionId});
-      setNotice(result.detail);
+      setNotice(info.detail ?? 'Chrome is prepared. Click Load unpacked once and select the opened folder; ContextSleep will connect automatically.');
     });
   }
 
@@ -170,6 +163,26 @@ export function App() {
     await act(async () => {
       const result = await invoke<{detail: string}>('install_vscode_integration');
       setNotice(result.detail);
+    });
+  }
+
+  async function setupAppsAutomatically() {
+    await act(async () => {
+      const notes: string[] = [];
+      try {
+        const chrome = await invoke<{chromeExtensionPath: string; detail?: string}>('prepare_chrome_integration');
+        setChromePreparedPath(chrome.chromeExtensionPath);
+        notes.push(chrome.detail ?? 'Chrome prepared.');
+      } catch (e) {
+        notes.push(`Chrome setup needs attention: ${String(e)}`);
+      }
+      try {
+        const vscode = await invoke<{detail: string}>('install_vscode_integration');
+        notes.push(vscode.detail);
+      } catch (e) {
+        notes.push(`VS Code setup needs attention: ${String(e)}`);
+      }
+      setNotice(notes.join(' '));
     });
   }
 
@@ -482,8 +495,14 @@ export function App() {
         eyebrow="Connect apps"
         id="connect-apps-title"
         title="Connect Chrome and VS Code"
-        description="Set up each integration once. ContextSleep watches the connection live, so a card turns green only when the app is actually reporting."
+        description="One setup action prepares both integrations. Chrome still requires one Load unpacked confirmation; after that, both Chrome and VS Code connect automatically."
       />
+      <div className="integration-auto-setup">
+        <button type="button" className="btn btn-primary btn-lg" disabled={busy || !isTauri()} onClick={() => void setupAppsAutomatically()}>
+          <Icon name="spark" />Set up apps automatically
+        </button>
+        <small>ContextSleep installs VS Code, pre-registers Chrome, and opens Chrome's one required Load unpacked step.</small>
+      </div>
       <div className="integration-setup-grid">
         <Card className={`integration-setup-card ${chromeConnected ? 'is-connected' : ''}`}>
           <div className="integration-setup-head">
@@ -493,19 +512,15 @@ export function App() {
           </div>
           {chromeConnected ? <p className="integration-success"><Icon name="check" />Chrome is reporting to ContextSleep.</p> : <>
             <ol className="integration-steps">
-              <li><strong>Prepare the extension</strong><span>ContextSleep opens Chrome's extensions page and the exact folder you need.</span></li>
-              <li><strong>Click Load unpacked</strong><span>Select the folder ContextSleep opened. Chrome will show a 32-character extension ID.</span></li>
-              <li><strong>Finish the connection</strong><span>Paste that ID below. ContextSleep registers the local bridge for you.</span></li>
+              <li><strong>Prepare Chrome</strong><span>ContextSleep pre-registers the local bridge and opens Chrome's extensions page plus the exact folder you need.</span></li>
+              <li><strong>Click Load unpacked once</strong><span>Select the opened folder. The extension has a stable ID, so no copy/paste step is needed.</span></li>
+              <li><strong>Wait for Connected</strong><span>The extension connects automatically as soon as Chrome loads it.</span></li>
             </ol>
             <div className="integration-actions">
               <button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void prepareChrome()}><Icon name="folder" />Prepare Chrome</button>
               {chromePreparedPath && <small className="integration-path">Folder: {chromePreparedPath}</small>}
             </div>
-            <div className="integration-id-row">
-              <label>Chrome extension ID<input value={chromeExtensionId} onChange={e => setChromeExtensionId(e.target.value.trim())} placeholder="32-character ID from chrome://extensions" /></label>
-              <button type="button" className="btn btn-quiet" disabled={busy || !isTauri() || chromeExtensionId.length !== 32} onClick={() => void finishChrome()}>Finish Chrome setup</button>
-            </div>
-            <small className="muted-line">After registration, click the ContextSleep extension in Chrome and choose Connect / refresh. This card will turn green automatically.</small>
+            <small className="muted-line">No extension ID, native-host registration, or manual Connect / refresh step is required.</small>
           </>}
         </Card>
 

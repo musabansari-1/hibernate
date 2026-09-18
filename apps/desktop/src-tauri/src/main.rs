@@ -1,4 +1,4 @@
-﻿#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use hibernate_native::store;
 use tauri::Manager;
 #[tauri::command]
@@ -173,9 +173,15 @@ fn prepare_integration_files() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({"root":stable,"hostPath":host,"chromeExtensionPath":chrome,"vsixPath":vsix,"registrationScript":script}))
 }
 
+const CHROME_EXTENSION_ID: &str = "lilgdmjjanejoihlpegfklkfaofebfhn";
+
 #[tauri::command]
 fn prepare_chrome_integration() -> Result<serde_json::Value, String> {
-    let info = prepare_integration_files()?;
+    let mut info = prepare_integration_files()?;
+    let _ = register_chrome_integration(CHROME_EXTENSION_ID.to_string())?;
+    info["extensionId"] = serde_json::json!(CHROME_EXTENSION_ID);
+    info["registered"] = serde_json::json!(true);
+    info["detail"] = serde_json::json!("Chrome bridge is pre-registered. Click Load unpacked once; the ContextSleep extension connects automatically when Chrome loads it.");
     let folder = info["chromeExtensionPath"].as_str().ok_or("Prepared Chrome folder is unavailable")?;
     let _ = std::process::Command::new("explorer.exe").arg(folder).spawn();
     let candidates = [
@@ -190,7 +196,6 @@ fn prepare_chrome_integration() -> Result<serde_json::Value, String> {
     }
     Ok(info)
 }
-
 #[tauri::command]
 fn register_chrome_integration(extension_id: String) -> Result<serde_json::Value, String> {
     let id = extension_id.trim().to_ascii_lowercase();
@@ -206,7 +211,7 @@ fn register_chrome_integration(extension_id: String) -> Result<serde_json::Value
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         return Err(if detail.is_empty() { stdout } else { detail });
     }
-    Ok(serde_json::json!({"registered":true,"extensionId":id,"hostPath":host,"detail":"Chrome bridge registered. In Chrome, click the ContextSleep extension and choose Connect / refresh."}))
+    Ok(serde_json::json!({"registered":true,"extensionId":id,"hostPath":host,"detail":"Chrome bridge registered. The extension connects automatically when Chrome loads or reloads it."}))
 }
 
 #[tauri::command]
@@ -289,4 +294,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("Cannot start ContextSleep");
 }
-

@@ -2,7 +2,7 @@ param(
   [switch]$InstallVSCode,
   [switch]$RegisterChrome,
   [switch]$UnregisterChrome,
-  [ValidatePattern('^[a-p]{32}$')][string]$ChromeExtensionId='',
+  [ValidatePattern('^[a-p]{32}$')][string]$ChromeExtensionId='lilgdmjjanejoihlpegfklkfaofebfhn',
   [ValidateSet('Chrome','Chromium')][string]$Browser='Chrome',
   [switch]$Launch
 )
@@ -21,12 +21,12 @@ if(-not ($InstallVSCode -or $RegisterChrome -or $UnregisterChrome -or $Launch)){
   Write-Host ''
   Write-Host 'Nothing was changed. Choose explicit actions:'
   Write-Host '  .\SETUP.ps1 -InstallVSCode'
-  Write-Host '  .\SETUP.ps1 -RegisterChrome -ChromeExtensionId YOUR_32_CHARACTER_ID'
-  Write-Host '  .\SETUP.ps1 -InstallVSCode -RegisterChrome -ChromeExtensionId YOUR_32_CHARACTER_ID -Launch'
-  Write-Host '  .\SETUP.ps1 -UnregisterChrome -ChromeExtensionId YOUR_32_CHARACTER_ID'
+  Write-Host '  .\SETUP.ps1 -RegisterChrome'
+  Write-Host '  .\SETUP.ps1 -InstallVSCode -RegisterChrome -Launch'
+  Write-Host '  .\SETUP.ps1 -UnregisterChrome'
   Write-Host ''
-  Write-Host 'Load the chrome-extension folder manually in chrome://extensions first, then copy its ID.'
-  Write-Host 'VS Code setup now prepares a stable local bridge automatically. The hibernate.nativeHostPath setting remains available as an advanced override.'
+  Write-Host 'Chrome uses the bundled stable extension ID. Load the chrome-extension folder once from chrome://extensions; it reconnects automatically afterward.'
+  Write-Host 'VS Code setup prepares a stable local bridge automatically. The hibernate.nativeHostPath setting remains available as an advanced override.'
   exit 0
 }
 

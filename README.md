@@ -23,19 +23,19 @@ npm.cmd run desktop
 
 ## Connect Chrome
 
-**Packaged beta:** use **Connect apps → Prepare Chrome** in the desktop app. ContextSleep opens the exact unpacked-extension folder and `chrome://extensions`; after Chrome shows the extension ID, paste it back into ContextSleep and choose **Finish Chrome setup**. The steps below remain the manual development fallback.
+**Packaged beta:** use **Connect apps -> Set up apps automatically** in the desktop app. ContextSleep installs the VS Code integration, pre-registers Chrome using the bundled extension's stable ID, opens `chrome://extensions`, and opens the exact Chrome extension folder. In Chrome, enable Developer mode, click **Load unpacked** once, and select that folder. Chrome connects automatically after it loads - there is no extension-ID copy/paste or manual Connect step.
+
+Manual development fallback:
 
 1. Build the extensions with `npm.cmd run build`.
 2. Open `chrome://extensions`, enable Developer mode and load `extensions/chrome/dist` as an unpacked extension.
-3. Copy its extension ID. Register this workspace's native host:
+3. If native-host registration is needed manually, register the bundled stable extension ID:
 
    ```powershell
-   powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/register-native-host.ps1 -ExtensionId YOUR_32_CHARACTER_ID
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/register-native-host.ps1 -ExtensionId lilgdmjjanejoihlpegfklkfaofebfhn
    ```
 
-4. Click the extension action, then **Connect / refresh**. Open the desktop app. Each connected profile gets a distinct local UUID; Chrome's private profile directories are not read.
-
-The script writes one per-user native messaging registration, restricted to that extension ID. It does not install the extension or require administrator privileges. Keep `.validation/native-host-Chrome.json` and the built host executable in place. Rerun registration if the repository moves. Unregister using the same command with `-Unregister`; it refuses to remove another installation's registration.
+The extension reconnects automatically in the background. Its popup only provides a retry fallback. The native messaging registration is per-user and restricted to the ContextSleep extension ID.
 
 ### Real browser validation
 

@@ -1179,6 +1179,8 @@ dialog.sheet::backdrop { background: #000a; backdrop-filter: blur(4px); animatio
 .connection-summary > div:first-child strong { font-size: 13px; }
 .connection-summary > div:first-child small { color: var(--muted); }
 .connection-summary-badges { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.integration-auto-setup { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 14px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%); }
+.integration-auto-setup small { color: var(--muted); max-width: 560px; line-height: 1.5; }
 .integration-setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .integration-setup-card { display: grid; gap: 14px; min-width: 0; border-color: color-mix(in srgb, var(--line) 85%, var(--accent) 15%); }
 .integration-setup-card.is-connected { border-color: color-mix(in srgb, var(--accent) 46%, var(--line)); background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%); }
