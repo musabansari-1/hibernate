@@ -81,7 +81,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             throw new Error('Open a local project folder or saved workspace before capture.');
                         await rpc(client, 'save', { body: state, jobId: job.id });
                         if (job.action === 'hibernate')
-                            throw new Error(state.dirty ? 'Unsaved editors detected. Nothing was closed.' : state.terminals.length ? 'Terminal processes cannot be proven safe to stop. Nothing was closed.' : 'Capture saved. Automatic VS Code close remains blocked until close/restore verification is validated. Use VS Codeâ€™s normal close action; native hot exit remains responsible for unsaved buffers.');
+                            throw new Error(state.dirty ? 'Unsaved editors detected. Nothing was closed.' : state.terminals.length ? 'Terminal processes cannot be proven safe to stop. Nothing was closed.' : 'Capture saved. Automatic VS Code close remains blocked until close/restore verification is validated. Use VS Code\'s normal close action; native hot exit remains responsible for unsaved buffers.');
                         await rpc(client, 'complete', { id: job.id, ok: true, result: 'Workspace, editor metadata and available terminal cwd captured. No file contents captured.' });
                     }
                     else if(job.action==='preflight_close'){
