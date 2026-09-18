@@ -5,7 +5,7 @@ export function ProductTour({onClose}: {onClose(): void}) {
     <section className="tour-dialog" role="dialog" aria-modal="true" aria-labelledby="tour-title">
       <header className="tour-head">
         <div>
-          <p className="eyebrow">42-second walkthrough</p>
+          <p className="eyebrow">Real end-to-end demo</p>
           <h2 id="tour-title">See the whole ContextSleep loop</h2>
           <p>Watch once, then try it with the safe synthetic Chrome workspace.</p>
         </div>
