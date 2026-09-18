@@ -950,6 +950,10 @@ td strong { font-size: 12.5px; }
 .ready-copy h3 { font-size: 26px; font-weight: 650; letter-spacing: -0.03em; margin: 2px 0 4px; }
 .ready-detail { font-size: 12.5px; color: var(--text-2); }
 .ready-count { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.ready-facts { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+.ready-facts li { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 9px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 82%, transparent); color: var(--muted); font-size: 10.5px; }
+.ready-facts li.is-verified { border-color: color-mix(in srgb, var(--accent) 36%, var(--line)); color: var(--text-2); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.ready-fact-mark { color: var(--accent); font-weight: 800; }
 .ready-spark { position: absolute; right: 18px; top: 18px; width: 18px; height: 18px; color: var(--accent); opacity: .35; }
 
 /* run reports */
@@ -1219,6 +1223,23 @@ dialog.sheet::backdrop { background: #000a; backdrop-filter: blur(4px); animatio
   .quickstart-action .btn { width: 100%; }
   .integration-id-row { grid-template-columns: 1fr; }
   .integration-id-row .btn { width: 100%; }
+}
+
+/* -------------------------------------------------- product walkthrough */
+.tour-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 24px; background: rgb(2 8 5 / .78); backdrop-filter: blur(10px); animation: fade-in .18s ease-out; }
+.tour-dialog { width: min(900px, 94vw); max-height: 92vh; overflow: auto; display: grid; gap: 14px; padding: 18px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); background: var(--surface-hi); box-shadow: 0 28px 100px rgb(0 0 0 / .48); }
+.tour-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.tour-head h2 { margin: 2px 0 4px; font-size: 22px; letter-spacing: -.4px; }
+.tour-head p:not(.eyebrow) { color: var(--muted); margin: 0; }
+.tour-video { width: 100%; border-radius: 13px; border: 1px solid var(--line); background: #020806; aspect-ratio: 16 / 9; }
+.tour-legend { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; }
+.tour-legend span { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 8px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--muted); font-size: 10.5px; }
+.tour-legend b { flex: none; width: 19px; height: 19px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-wash); color: var(--accent); font-size: 9px; }
+
+@media (max-width: 720px) {
+  .tour-backdrop { padding: 12px; }
+  .tour-dialog { padding: 13px; border-radius: 14px; }
+  .tour-legend { grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
 
 /* ------------------------------------------------------------- 11. animation */

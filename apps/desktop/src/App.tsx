@@ -10,6 +10,7 @@ import {ListenerObservation} from './components/ListenerObservation';
 import {ServiceLaunch} from './components/ServiceLaunch';
 import {ChromeColdStart} from './components/ChromeColdStart';
 import {SetupGuide} from './components/SetupGuide';
+import {ProductTour} from './components/ProductTour';
 import {StageRail, type Stage, type StageKey} from './components/StageRail';
 import {MemoryGauge} from './components/MemoryGauge';
 import {Wordmark} from './components/Logo';
@@ -60,6 +61,7 @@ export function App() {
 
   const [chromePreparedPath, setChromePreparedPath] = useState('');
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
 
   async function refresh() {
     if (!isTauri()) return;
@@ -186,6 +188,35 @@ export function App() {
     });
   }
 
+  async function assignDetectedWindows() {
+    await act(async () => {
+      const current = dataRef.current ?? await refresh();
+      if (!current) throw new Error('ContextSleep is still loading. Try again in a moment.');
+      let added = 0;
+      let alreadyAssignedElsewhere = 0;
+      for (const report of current.reports.filter(r => Date.now() - r.at < LIVE_WINDOW_MS)) {
+        for (const item of report.body.items) {
+          const target = item.membershipKey ?? item.id;
+          const existing = current.memberships.find(m => m.client === report.client && m.target === target);
+          if (existing) {
+            if (existing.projectId !== current.workspace.id) alreadyAssignedElsewhere += 1;
+            continue;
+          }
+          await invoke('assign_project', {client: report.client, target, projectId: current.workspace.id});
+          added += 1;
+        }
+      }
+      if (!added) {
+        setNotice(alreadyAssignedElsewhere
+          ? 'No unassigned windows were available. Some connected windows already belong to another workspace; review them below if you want to move one.'
+          : 'No new connected windows were found yet. Open Chrome or VS Code and wait a few seconds.');
+        return;
+      }
+      setNotice(`${added} ${added === 1 ? 'window' : 'windows'} added to this workspace.${alreadyAssignedElsewhere ? ` ${alreadyAssignedElsewhere} already belonged to another workspace and ${alreadyAssignedElsewhere === 1 ? 'was' : 'were'} left unchanged.` : ''}`);
+    });
+    goTo('apps');
+  }
+
   async function startSafeDemo() {
     await act(async () => {
       const current = dataRef.current ?? await refresh();
@@ -245,9 +276,15 @@ export function App() {
   const memory = data?.memory;
   const recoveryKey = data ? interruptedRecoveryKey(data) : '';
   const showRecovery = !!recoveryKey && recoveryKey !== dismissedRecovery;
-  const liveIntegrations = integrations.filter(r => connected(r.client)).length;
+  const liveReports = integrations.filter(r => connected(r.client));
+  const liveIntegrations = liveReports.length;
   const chromeConnected = integrations.some(r => r.adapter === 'chrome' && connected(r.client));
   const vscodeConnected = integrations.some(r => r.adapter === 'vscode' && connected(r.client));
+  const connectedWindowCount = liveReports.reduce((sum, report) => sum + report.body.items.length, 0);
+  const unassignedConnectedWindows = liveReports.reduce((sum, report) => sum + report.body.items.filter(item => {
+    const target = memberKey(report, item);
+    return !data?.memberships.some(m => m.client === report.client && m.target === target);
+  }).length, 0);
   const assignedWindows = data?.memberships.filter(m => m.projectId === projectId).length ?? 0;
   const liveWindowCounts = new Map<string, number>();
   for (const report of integrations.filter(r => connected(r.client))) {
@@ -288,43 +325,61 @@ export function App() {
 
   const stageKey: StageKey = isReady ? 'ready' : asleep ? 'restore' : checkpointCount ? 'sleep' : assignedWindows ? 'capture' : 'connect';
   const stages: Stage[] = [
-    {key: 'connect', label: 'Connect', hint: assignedWindows ? `${plural(assignedWindows, 'window')} assigned` : 'Assign your apps', state: assignedWindows ? 'done' : stageKey === 'connect' ? 'current' : 'todo'},
-    {key: 'capture', label: 'Capture', hint: checkpointCount ? 'Checkpoint saved' : 'Save the context', state: checkpointCount ? 'done' : stageKey === 'capture' ? 'current' : 'todo'},
-    {key: 'sleep', label: 'Sleep', hint: lastClose ? 'Reviewed and closed' : 'Free the memory', state: lastClose && ['closed-selected', 'partial'].includes(lastClose.state) ? 'done' : stageKey === 'sleep' ? 'current' : 'todo'},
+    {key: 'connect', label: 'Connect', hint: assignedWindows ? `${plural(assignedWindows, 'window')} added` : 'Add your apps', state: assignedWindows ? 'done' : stageKey === 'connect' ? 'current' : 'todo'},
+    {key: 'capture', label: 'Save', hint: checkpointCount ? 'Workspace saved' : 'Save before closing', state: checkpointCount ? 'done' : stageKey === 'capture' ? 'current' : 'todo'},
+    {key: 'sleep', label: 'Sleep', hint: lastClose ? 'Reviewed and closed' : 'Free memory safely', state: lastClose && ['closed-selected', 'partial'].includes(lastClose.state) ? 'done' : stageKey === 'sleep' ? 'current' : 'todo'},
     {key: 'restore', label: 'Restore', hint: lastRun ? 'Rebuilt locally' : 'Bring it back', state: lastRun ? 'done' : stageKey === 'restore' ? 'current' : 'todo'},
-    {key: 'ready', label: 'Ready', hint: isReady ? 'Verified by observation' : 'Verified restore', state: isReady ? 'done' : stageKey === 'ready' ? 'current' : 'todo'},
+    {key: 'ready', label: 'Verified', hint: isReady ? 'Observed and ready' : 'Check the restore', state: isReady ? 'done' : stageKey === 'ready' ? 'current' : 'todo'},
   ];
 
+  const connectHero = liveIntegrations === 0
+    ? {
+        title: 'Step 1: Connect Chrome or VS Code',
+        body: 'Click once to prepare both integrations. Chrome asks for one Load unpacked confirmation; after that, supported apps connect automatically.',
+        cta: 'Set up apps automatically', tone: 'setup',
+        onCta: () => void setupAppsAutomatically(),
+      }
+    : unassignedConnectedWindows > 0
+      ? {
+          title: 'Step 2: Add the windows you want to put away',
+          body: `ContextSleep can see ${plural(connectedWindowCount, 'window')} right now. Add the ${plural(unassignedConnectedWindows, 'unassigned window')} to this workspace with one click, or choose them manually below.`,
+          cta: `Add ${plural(unassignedConnectedWindows, 'detected window')}`, tone: 'setup',
+          onCta: () => void assignDetectedWindows(),
+        }
+      : {
+          title: 'Step 2: Choose the windows for this workspace',
+          body: connectedWindowCount
+            ? 'Your connected windows are already assigned somewhere. Review the list below and choose which ones belong to this workspace.'
+            : 'The integrations are connected, but no supported window is reporting yet. Open Chrome or a trusted local VS Code project and wait a few seconds.',
+          cta: 'Choose workspace windows', tone: 'setup',
+          onCta: () => goTo('apps'),
+        };
+
   const heroCopy: Record<StageKey, {title: string; body: string; cta: string; onCta(): void; tone: string}> = {
-    connect: {
-      title: 'Connect the apps in this workspace',
-      body: 'Start with Chrome or VS Code. ContextSleep shows the live windows it can actually see, then you choose which ones belong to this workspace.',
-      cta: 'Connect apps', tone: 'setup',
-      onCta: () => goTo('integrations-setup'),
-    },
+    connect: connectHero,
     capture: {
-      title: 'Capture before anything closes',
-      body: `${plural(assignedWindows, 'window')} assigned to this workspace. Capturing saves everything ContextSleep needs to rebuild them. Nothing closes at this step.`,
-      cta: 'Capture workspace context', tone: 'capture',
+      title: 'Step 3: Save this workspace before anything closes',
+      body: `${plural(assignedWindows, 'window')} belong to this workspace. Saving creates the recovery checkpoint ContextSleep needs to rebuild them later. Nothing closes yet.`,
+      cta: 'Save this workspace', tone: 'capture',
       onCta: () => void act(() => capture(assignedKeys)),
     },
     sleep: {
-      title: 'Ready to free memory',
-      body: 'Your checkpoint is saved locally. Review exactly what may close, then let ContextSleep put those windows to sleep.',
-      cta: 'Check sleep readiness', tone: 'sleep',
+      title: 'Step 4: Review, then free the memory',
+      body: 'The workspace is saved. ContextSleep will show exactly what may close, recheck it, and leave anything uncertain open.',
+      cta: 'Review and sleep', tone: 'sleep',
       onCta: () => goTo('checkpoint'),
     },
     restore: {
-      title: 'Workspace is asleep',
-      body: 'The reviewed windows closed and their context is stored on this PC. Bring it back whenever you are ready.',
-      cta: 'Restore workspace', tone: 'asleep',
+      title: 'Workspace asleep. Bring it back when you need it.',
+      body: 'The reviewed windows closed and the recovery checkpoint stayed on this PC. Restore it and ContextSleep will verify what actually returned.',
+      cta: 'Bring workspace back', tone: 'asleep',
       onCta: () => goTo('checkpoint'),
     },
     ready: {
-      title: 'Ready',
-      body: lastRun?.body.readiness?.detail ?? 'Your workspace came back and every selected capability was verified.',
-      cta: 'Capture again', tone: 'ready',
-      onCta: () => goTo('apps'),
+      title: 'Done: the restore was verified',
+      body: lastRun?.body.readiness?.detail ?? 'ContextSleep observed the selected capabilities after restore instead of assuming that launching an app was enough.',
+      cta: 'See restore proof', tone: 'ready',
+      onCta: () => goTo('checkpoint'),
     },
   };
   const hero = heroCopy[stageKey];
@@ -479,9 +534,10 @@ export function App() {
       </div>
       <div className="quickstart-action">
         <button type="button" className="btn btn-primary btn-lg" disabled={busy || !data || !isTauri()} onClick={() => chromeConnected ? void startSafeDemo() : goTo('integrations-setup')}>
-          <Icon name={chromeConnected ? 'spark' : 'arrow'} />{chromeConnected ? 'Start safe demo' : 'Connect Chrome first'}
+          <Icon name={chromeConnected ? 'spark' : 'arrow'} />{chromeConnected ? 'Try the safe live demo' : 'Connect Chrome for live demo'}
         </button>
-        <small>{chromeConnected ? 'Creates only synthetic ContextSleep validation pages.' : 'Chrome is used because the beta already has a dedicated disposable validation fixture.'}</small>
+        <button type="button" className="btn btn-ghost" onClick={() => setTourOpen(true)}><Icon name="play" />Watch 42-second walkthrough</button>
+        <small>{chromeConnected ? 'The live demo uses only synthetic ContextSleep pages.' : 'The walkthrough works immediately; the live demo becomes available after Chrome connects.'}</small>
       </div>
       <div className="scope-strip" aria-label="Current support">
         <div><span className="scope-dot is-good" /><strong>Sleep + restore</strong><small>Chrome, VS Code, approved Node/Python services</small></div>
@@ -558,11 +614,14 @@ export function App() {
 
     <section id="apps" className="block" aria-labelledby="apps-title">
       <SectionHead
-        eyebrow="Connect and capture"
+        eyebrow="Choose what to put away"
         id="apps-title"
-        title="Workspace apps"
-        description="Pick the windows that belong to this workspace. Capturing saves reconstructable context first - nothing closes because you selected it."
-        action={<button type="button" className="btn btn-quiet" disabled={busy || !projectId || !assignedKeys.length} onClick={() => setSelected(assignedKeys)}>Select assigned</button>}
+        title="Which windows belong to this workspace?"
+        description="Add the windows you want ContextSleep to save and later rebuild. Adding a window does not close it."
+        action={<div className="row-actions">
+          {!!unassignedConnectedWindows && <button type="button" className="btn btn-primary" disabled={busy || !projectId} onClick={() => void assignDetectedWindows()}>Add detected windows</button>}
+          <button type="button" className="btn btn-quiet" disabled={busy || !projectId || !assignedKeys.length} onClick={() => setSelected(assignedKeys)}>Select saved workspace windows</button>
+        </div>}
       />
 
       {!integrations.length && <Empty
@@ -637,7 +696,7 @@ export function App() {
         <div className="capture-actions">
           <small>{selected.length ? `${plural(selected.length, 'window')} selected` : 'No window selected'}</small>
           <button type="button" className="btn btn-primary btn-lg" disabled={busy || !data || (!selected.length && !includeContext)} onClick={() => void act(() => capture(selected))}>
-            <Icon name="layers" />Capture workspace context
+            <Icon name="layers" />Save this workspace
           </button>
         </div>
       </div>}
@@ -906,5 +965,6 @@ export function App() {
         </div>
       </footer>
     </main>
+    {tourOpen && <ProductTour onClose={() => setTourOpen(false)} />}
   </div>;
 }

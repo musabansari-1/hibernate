@@ -17,7 +17,15 @@ export function ReadyBanner({detail, facts, at}: {detail: string; facts: {capabi
       <p className="ready-kicker">Workspace restored</p>
       <h3>Ready</h3>
       <p className="ready-detail">{detail}</p>
-      {!!facts.length && <p className="ready-count">{verified} of {facts.length} capabilities verified by observation{at ? ` at ${new Date(at).toLocaleTimeString()}` : ''}.</p>}
+      {!!facts.length && <>
+        <p className="ready-count">{verified} of {facts.length} capabilities verified by observation{at ? ` at ${new Date(at).toLocaleTimeString()}` : ''}.</p>
+        <ul className="ready-facts" aria-label="Verified restore capabilities">
+          {facts.map((fact, i) => <li key={`${fact.capability}-${i}`} className={fact.status === 'verified' ? 'is-verified' : ''}>
+            <span className="ready-fact-mark" aria-hidden="true">{fact.status === 'verified' ? '✓' : '•'}</span>
+            <span>{fact.capability}</span>
+          </li>)}
+        </ul>
+      </>}
     </div>
     <Icon name="spark" className="ready-spark" />
   </div>;

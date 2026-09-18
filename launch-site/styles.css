@@ -301,6 +301,29 @@ li[data-row="folder"] .demo-chip { color: var(--accent); background: var(--accen
 .strip p { font-size: 14.5px; color: var(--muted); max-width: 96ch; }
 .strip strong { color: var(--text-2); }
 
+/* --------------------------------------------------------------- Astra */
+.astra-showcase { position: relative; overflow: hidden; background: radial-gradient(900px 420px at 15% 10%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 68%); border-bottom: 1px solid var(--line); }
+.astra-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr); gap: clamp(32px, 5vw, 70px); align-items: center; }
+.astra-copy h2 { max-width: 16ch; }
+.astra-points { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 28px; }
+.astra-points article { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.astra-points strong { color: var(--accent-2); font-size: 13px; }
+.astra-points span { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+.astra-note { margin-top: 18px; color: var(--faint); font-size: 12.5px; line-height: 1.6; max-width: 72ch; }
+.astra-media { overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: var(--r-lg); background: #030806; box-shadow: 0 24px 70px rgb(0 0 0 / .28); }
+.astra-media video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #020604; }
+.astra-media-foot { display: grid; gap: 4px; padding: 14px 16px 16px; border-top: 1px solid var(--line); }
+.astra-media-foot span { color: var(--accent); font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+.astra-media-foot strong { color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+
+@media (max-width: 920px) {
+  .astra-grid { grid-template-columns: 1fr; }
+  .astra-copy h2 { max-width: 22ch; }
+}
+@media (max-width: 640px) {
+  .astra-points { grid-template-columns: 1fr; }
+}
+
 /* ------------------------------------------------------------------ why */
 
 .versus { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }

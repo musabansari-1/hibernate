@@ -49,6 +49,7 @@
       <a href="#memory">Memory</a>
       <a href="#safety">Safety</a>
       <a href="#support">What it supports</a>
+      <a href="#astra">Built with Astra</a>
       <a href="#limits">Limits</a>
     </nav>
     <a class="btn btn-primary nav-cta" href="/downloads/contextsleep-0.1.0-windows-private-beta.zip" download>Download beta</a>
@@ -72,7 +73,7 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.6v7.2" /><path d="m5 7.2 3 3 3-3" /><path d="M3 12.6h10" /></svg>
             Download for Windows
           </a>
-          <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+          <a class="btn btn-ghost btn-lg" href="/contextsleep-demo.mp4" target="_blank" rel="noopener">Watch 42-second demo</a>
         </div>
         <ul class="proof-row">
           <li>Capture first</li>
@@ -141,6 +142,30 @@
         <strong>Verified sleep and restore today</strong> for VS&nbsp;Code, Chrome and approved local Node or Python services.
         Explorer folders and instrumented terminals restore as context. Broader app coverage is planned.
       </p>
+    </div>
+  </section>
+
+  <!-- ======================================================== Astra -->
+  <section class="section astra-showcase" id="astra">
+    <div class="wrap astra-grid">
+      <div class="astra-copy">
+        <p class="eyebrow">GPT-6 Astra Challenge</p>
+        <h2>Astra helped solve the hard systems problems, not just write copy.</h2>
+        <p class="section-lede">
+          GPT-6 Astra was used throughout ContextSleep's engineering: reasoning about native Windows ownership,
+          fail-closed close rules, durable checkpoints, cold-start recovery, service verification, and ambiguous multi-window VS&nbsp;Code cases.
+        </p>
+        <div class="astra-points">
+          <article><strong>Ownership</strong><span>Prove which native window belongs to the integration before any close is allowed.</span></article>
+          <article><strong>Recovery</strong><span>Journal multi-step work so interruption never silently replays uncertain side effects.</span></article>
+          <article><strong>Verification</strong><span>Show READY only after the selected capabilities are observed again.</span></article>
+        </div>
+        <p class="astra-note">Astra was an engineering collaborator during the build. ContextSleep itself remains local-first and does not require a cloud AI runtime to sleep or restore a workspace.</p>
+      </div>
+      <div class="astra-media">
+        <video controls playsinline preload="metadata" src="/contextsleep-demo.mp4" aria-label="42-second ContextSleep walkthrough"></video>
+        <div class="astra-media-foot"><span>42-second walkthrough</span><strong>Connect &rarr; Save &rarr; Review &rarr; Sleep &rarr; Restore &rarr; Verified</strong></div>
+      </div>
     </div>
   </section>
 

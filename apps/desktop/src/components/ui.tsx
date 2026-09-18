@@ -60,6 +60,7 @@ const paths: Record<string, ReactNode> = {
   search: <><circle cx="7.2" cy="7.2" r="4.4" /><path d="m10.6 10.6 2.7 2.7" /></>,
   folder: <path d="M2.5 12.4V4.2a1 1 0 0 1 1-1h2.6l1.4 1.6h5a1 1 0 0 1 1 1v6.6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Z" />,
   download: <><path d="M8 2.6v7.2" /><path d="m5 7.2 3 3 3-3" /><path d="M3 12.6h10" /></>,
+  play: <path d="M5.4 3.6 12 8l-6.6 4.4Z" />,
   close: <><path d="m4.4 4.4 7.2 7.2" /><path d="m11.6 4.4-7.2 7.2" /></>,
 };
 
