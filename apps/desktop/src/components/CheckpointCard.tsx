@@ -5,7 +5,7 @@ import {ProjectCloseReview} from './ProjectCloseReview';
 import {ReadyBanner} from './ReadyBanner';
 import {MemoryDelta} from './MemoryGauge';
 import {Badge, Evidence, Icon} from './ui';
-import {captureStateLabel, closeStateLabel, dateTime, plural, relativeTime, stepStateLabel} from '../lib/format';
+import {captureStateLabel, closeStateLabel, dateTime, plural, relativeTime, signedGb, stepStateLabel} from '../lib/format';
 
 type Props = {
   checkpoint: ProjectCheckpoint;
@@ -48,6 +48,8 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
   const asleep = lastClose?.state === 'closed-selected' && (!latest || latest.created < lastClose.created);
   const readiness = latest?.body.readiness;
   const isReady = !!readiness?.verified && latest?.state !== 'interrupted' && (!lastClose || latest.created > lastClose.created);
+  const sleepChange = lastClose?.body.before && lastClose.body.after
+    ? lastClose.body.after.availablePhysical - lastClose.body.before.availablePhysical : null;
   const restorable = [...entries.map(e => e.id), ...(services.length ? ['services'] : [])];
   const partsChosen = selected.filter(id => id !== 'services' || approvedServices).length;
 
@@ -73,6 +75,16 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
     {c.body.services?.filter(s => s.importWarning).map(s => <p key={`sw-${s.id}`} className="inline-alert is-warn" role="status"><Icon name="info" />{s.name}: {s.importWarning}</p>)}
     {failedCaptures.map((v, i) => <p key={`fc-${i}`} className="inline-alert is-warn" role="status"><Icon name="info" />{captureStateLabel(v.state).label}: {v.detail ?? 'No completed capture recorded. Individual saved contexts may still be available in History.'}</p>)}
 
+    {asleep && <div className="sleep-success" role="status">
+      <span className="sleep-success-icon" aria-hidden="true"><Icon name="moon" /></span>
+      <div>
+        <p className="eyebrow">Workspace asleep</p>
+        <h3>Context is saved. The reviewed windows are closed.</h3>
+        <p>{sleepChange == null ? 'Restore whenever you are ready.' : `Windows reported ${signedGb(sleepChange)} change in system available memory during this sleep.`}</p>
+      </div>
+      <Badge tone="info">Ready to restore</Badge>
+    </div>}
+
     {isReady && readiness && <ReadyBanner detail={readiness.detail} facts={readiness.facts} at={latest?.created} />}
 
     <div className="checkpoint-lanes">
@@ -81,7 +93,7 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
         <p>ContextSleep rechecks every selected window immediately before closing it. If ownership or state cannot be established, that window stays open.</p>
         <div className="lane-actions">
           <button type="button" className={`btn ${asleep ? 'btn-quiet' : 'btn-primary'}`} disabled={busy || c.state === 'capturing'} onClick={() => void reviewClose().then(setReview)}>
-            <Icon name="shield" />Review and sleep
+            <Icon name="shield" />Check sleep readiness
           </button>
           <button type="button" className="btn btn-ghost" disabled={busy || c.state === 'capturing'} onClick={exportBackup}>Export encrypted copy</button>
         </div>

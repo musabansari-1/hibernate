@@ -59,6 +59,7 @@ export function App() {
   const [includeContext, setIncludeContext] = useState(false);
   const [chromeExtensionId, setChromeExtensionId] = useState('');
   const [chromePreparedPath, setChromePreparedPath] = useState('');
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
 
   async function refresh() {
     if (!isTauri()) return;
@@ -172,6 +173,49 @@ export function App() {
     });
   }
 
+  async function startSafeDemo() {
+    await act(async () => {
+      const current = dataRef.current ?? await refresh();
+      if (!current) throw new Error('ContextSleep is still loading. Try the demo again in a moment.');
+      const chrome = current.reports.find(r => r.adapter === 'chrome' && Date.now() - r.at < LIVE_WINDOW_MS);
+      if (!chrome) {
+        goTo('integrations-setup');
+        throw new Error('Connect Chrome first. Then ContextSleep can create a synthetic demo window without touching your real tabs.');
+      }
+      const beforeIds = new Set(chrome.body.items.map(item => item.id));
+      setOperation('Creating a safe 12-tab demo in Chrome. Your real windows are not touched.');
+      const jobId = await queue(chrome.client, 'fixture');
+      await waitForJob(jobId);
+
+      const deadline = Date.now() + 12000;
+      let demoReport = current.reports.find(r => r.client === chrome.client);
+      let demoItem = demoReport?.body.items.find(item => !beforeIds.has(item.id) && item.detail === '12 tabs');
+      while (!demoItem && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 400));
+        const latest = await refresh();
+        demoReport = latest?.reports.find(r => r.client === chrome.client);
+        demoItem = demoReport?.body.items.find(item => !beforeIds.has(item.id) && item.detail === '12 tabs');
+      }
+      if (!demoReport || !demoItem) {
+        goTo('apps');
+        throw new Error('The safe Chrome window was created, but it has not appeared in ContextSleep yet. Wait a few seconds, then select the 12-tab validation window under Workspace apps.');
+      }
+
+      const target = memberKey(demoReport, demoItem);
+      await invoke('assign_project', {client: demoReport.client, target, projectId: current.workspace.id});
+      await refresh();
+      const key = JSON.stringify([demoReport.client, demoItem.id]);
+      setSelected([key]);
+      await capture([key]);
+      setNotice('Safe demo ready: 12 synthetic Chrome tabs are captured and assigned to this workspace. Review the checkpoint below, put it to sleep, then restore it to see the full loop.');
+    });
+  }
+
+  async function openWorkspaceCandidate(id: string) {
+    await act(() => invoke('select_project', {id}));
+    goTo('apps');
+  }
+
   function goTo(id: string, nextView: View = 'workspace') {
     setView(nextView);
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({behavior: 'smooth', block: 'start'}));
@@ -192,6 +236,34 @@ export function App() {
   const chromeConnected = integrations.some(r => r.adapter === 'chrome' && connected(r.client));
   const vscodeConnected = integrations.some(r => r.adapter === 'vscode' && connected(r.client));
   const assignedWindows = data?.memberships.filter(m => m.projectId === projectId).length ?? 0;
+  const liveWindowCounts = new Map<string, number>();
+  for (const report of integrations.filter(r => connected(r.client))) {
+    for (const item of report.body.items) {
+      const target = memberKey(report, item);
+      const membership = data?.memberships.find(m => m.client === report.client && m.target === target);
+      if (membership) liveWindowCounts.set(membership.projectId, (liveWindowCounts.get(membership.projectId) ?? 0) + 1);
+    }
+  }
+  const memoryAvailableRatio = memory?.totalPhysical ? memory.availablePhysical / memory.totalPhysical : null;
+  const memoryPressure = memoryAvailableRatio == null
+    ? {label: 'Memory reading unavailable', detail: 'ContextSleep needs the desktop app to read Windows memory.', tone: 'neutral' as const}
+    : memoryAvailableRatio <= 0.15
+      ? {label: 'Memory is tight', detail: `${Math.round(memoryAvailableRatio * 100)}% of physical memory is available. Consider putting away work you are not using.`, tone: 'bad' as const}
+      : memoryAvailableRatio <= 0.25
+        ? {label: 'Memory pressure is rising', detail: `${Math.round(memoryAvailableRatio * 100)}% of physical memory is available. ContextSleep can help you free headroom safely.`, tone: 'warn' as const}
+        : {label: 'Memory looks healthy', detail: `${Math.round(memoryAvailableRatio * 100)}% of physical memory is available. You can still put away a workspace whenever you want.`, tone: 'good' as const};
+  const sleepCandidates = (data?.projects ?? [])
+    .map(project => ({...project, liveWindows: liveWindowCounts.get(project.id) ?? 0}))
+    .filter(project => project.liveWindows > 0)
+    .sort((a, b) => {
+      if (a.lastObservedActive == null && b.lastObservedActive != null) return 1;
+      if (b.lastObservedActive == null && a.lastObservedActive != null) return -1;
+      const aObserved = a.lastObservedActive ?? Number.MAX_SAFE_INTEGER;
+      const bObserved = b.lastObservedActive ?? Number.MAX_SAFE_INTEGER;
+      if (aObserved !== bObserved) return aObserved - bObserved;
+      return b.liveWindows - a.liveWindows;
+    })
+    .slice(0, 4);
   const checkpoint = data?.checkpoints[0];
   const checkpointCount = data?.checkpoints.length ?? 0;
   const lastClose = checkpoint?.hibernations?.[0];
@@ -213,9 +285,9 @@ export function App() {
   const heroCopy: Record<StageKey, {title: string; body: string; cta: string; onCta(): void; tone: string}> = {
     connect: {
       title: 'Connect the apps in this workspace',
-      body: 'ContextSleep reads real state from the apps you connect. Open the bundled VS Code or Chrome integration, then assign the windows that belong here.',
-      cta: 'Show setup steps', tone: 'setup',
-      onCta: () => {setSetupOpen(true); goTo('setup');},
+      body: 'Start with Chrome or VS Code. ContextSleep shows the live windows it can actually see, then you choose which ones belong to this workspace.',
+      cta: 'Connect apps', tone: 'setup',
+      onCta: () => goTo('integrations-setup'),
     },
     capture: {
       title: 'Capture before anything closes',
@@ -226,7 +298,7 @@ export function App() {
     sleep: {
       title: 'Ready to free memory',
       body: 'Your checkpoint is saved locally. Review exactly what may close, then let ContextSleep put those windows to sleep.',
-      cta: 'Review and sleep', tone: 'sleep',
+      cta: 'Check sleep readiness', tone: 'sleep',
       onCta: () => goTo('checkpoint'),
     },
     restore: {
@@ -338,7 +410,74 @@ export function App() {
       <StageRail stages={stages} onSelect={key => goTo(key === 'connect' || key === 'capture' ? 'apps' : 'checkpoint')} />
     </section>
 
-    <section id="integrations-setup" className="block integrations-setup" aria-labelledby="connect-apps-title">
+    {data && !asleep && !isReady && <section className={`sleep-advisor advisor-${memoryPressure.tone}`} aria-labelledby="sleep-advisor-title">
+      <div className="advisor-overview">
+        <span className="advisor-icon" aria-hidden="true"><Icon name="spark" /></span>
+        <div className="advisor-copy">
+          <p className="eyebrow">Memory Rescue</p>
+          <h2 id="sleep-advisor-title">What should I put away?</h2>
+          <p>{memoryPressure.detail}</p>
+        </div>
+        <div className="advisor-memory">
+          <Badge tone={memoryPressure.tone}>{memoryPressure.label}</Badge>
+          <strong>{memory ? gb(memory.availablePhysical) : '--'}</strong>
+          <small>Windows available memory</small>
+        </div>
+      </div>
+      <div className="advisor-candidates">
+        <div className="advisor-candidates-head">
+          <strong>Workspaces worth reviewing</strong>
+          <small>ContextSleep ranks only workspaces that currently have explicitly assigned windows reporting.</small>
+        </div>
+        {sleepCandidates.length ? <div className="advisor-list">
+          {sleepCandidates.map((project, index) => <div key={project.id} className={`advisor-row ${project.id === projectId ? 'is-current' : ''}`}>
+            <span className="advisor-rank" aria-hidden="true">{index + 1}</span>
+            <div className="advisor-project">
+              <div className="advisor-project-title">
+                <strong>{project.name}</strong>
+                {project.id === projectId && <Badge tone="info">Current</Badge>}
+              </div>
+              <small>{project.lastObservedActive ? `Foreground last observed ${relativeTime(project.lastObservedActive)}` : 'No reliable foreground observation recorded'}</small>
+            </div>
+            <div className="advisor-evidence">
+              <strong>{project.liveWindows}</strong>
+              <small>{project.liveWindows === 1 ? 'reporting window' : 'reporting windows'}</small>
+            </div>
+            {project.id === projectId
+              ? <button type="button" className="btn btn-primary" disabled={busy || (!checkpointCount && !assignedKeys.length)} onClick={() => checkpointCount ? goTo('checkpoint') : void act(() => capture(assignedKeys))}>{checkpointCount ? 'Review sleep plan' : 'Prepare sleep plan'}</button>
+              : <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => void openWorkspaceCandidate(project.id)}>Review workspace</button>}
+          </div>)}
+        </div> : <div className="advisor-empty">
+          <Icon name="info" />
+          <span><strong>No sleep candidate is observable yet.</strong><small>Assign a connected Chrome or VS Code window to a workspace and ContextSleep will surface it here.</small></span>
+        </div>}
+      </div>
+      <small className="advisor-note">Recommendation evidence is deliberately conservative: system memory, explicit window membership and last foreground observations. It does not prove continuous inactivity or promise an exact per-workspace RAM saving.</small>
+    </section>}
+
+    {checkpointCount === 0 && <section className="quickstart-card" aria-labelledby="quickstart-title">
+      <div className="quickstart-copy">
+        <span className="quickstart-icon" aria-hidden="true"><Icon name="spark" /></span>
+        <div>
+          <p className="eyebrow">New to ContextSleep?</p>
+          <h2 id="quickstart-title">Try the whole idea safely in about two minutes</h2>
+          <p>ContextSleep can create a separate 12-tab synthetic Chrome window, assign it to this workspace and capture it for you. Your real tabs are never touched.</p>
+        </div>
+      </div>
+      <div className="quickstart-action">
+        <button type="button" className="btn btn-primary btn-lg" disabled={busy || !data || !isTauri()} onClick={() => chromeConnected ? void startSafeDemo() : goTo('integrations-setup')}>
+          <Icon name={chromeConnected ? 'spark' : 'arrow'} />{chromeConnected ? 'Start safe demo' : 'Connect Chrome first'}
+        </button>
+        <small>{chromeConnected ? 'Creates only synthetic ContextSleep validation pages.' : 'Chrome is used because the beta already has a dedicated disposable validation fixture.'}</small>
+      </div>
+      <div className="scope-strip" aria-label="Current support">
+        <div><span className="scope-dot is-good" /><strong>Sleep + restore</strong><small>Chrome, VS Code, approved Node/Python services</small></div>
+        <div><span className="scope-dot is-context" /><strong>Restore as context</strong><small>Explorer folders and verified terminal working directories</small></div>
+        <div><span className="scope-dot is-safe" /><strong>Fail closed</strong><small>If ContextSleep cannot prove a target is safe to close, it stays open</small></div>
+      </div>
+    </section>}
+
+    {stageKey === 'connect' || connectionsOpen || integrations.length === 0 ? <section id="integrations-setup" className="block integrations-setup" aria-labelledby="connect-apps-title">
       <SectionHead
         eyebrow="Connect apps"
         id="connect-apps-title"
@@ -389,7 +528,18 @@ export function App() {
         </Card>
       </div>
       {!isTauri() && <p className="muted-line">Integration installation is available from the ContextSleep desktop app, not this browser preview.</p>}
-    </section>
+    </section> : <section id="integrations-setup" className="connection-summary" aria-label="App connections">
+      <div>
+        <p className="eyebrow">App connections</p>
+        <strong>{integrations.length} integration{integrations.length === 1 ? '' : 's'} known</strong>
+        <small>{liveIntegrations ? `${liveIntegrations} reporting right now.` : 'None reporting right now - sleeping apps can be offline.'}</small>
+      </div>
+      <div className="connection-summary-badges">
+        <Badge tone={chromeConnected ? 'good' : 'neutral'} dot>Chrome {chromeConnected ? 'live' : 'offline'}</Badge>
+        <Badge tone={vscodeConnected ? 'good' : 'neutral'} dot>VS Code {vscodeConnected ? 'live' : 'offline'}</Badge>
+      </div>
+      <button type="button" className="btn btn-quiet" onClick={() => {setConnectionsOpen(true); requestAnimationFrame(() => document.getElementById('integrations-setup')?.scrollIntoView({behavior: 'smooth', block: 'start'}));}}>Manage connections</button>
+    </section>}
 
     <section id="apps" className="block" aria-labelledby="apps-title">
       <SectionHead

@@ -20,13 +20,24 @@ export function ProjectCloseReview({review, onCancel, onApprove}: {review: Hiber
     <header className="sheet-head">
       <div>
         <p className="eyebrow">Final safety check</p>
-        <h2 id="project-close-title">Review what may close</h2>
+        <h2 id="project-close-title">What can sleep right now?</h2>
         <small>{review.body.project.name} - {review.body.project.projectPath || 'No folder saved'}</small>
       </div>
       <button type="button" className="btn btn-icon" onClick={onCancel} aria-label="Close review"><Icon name="close" /></button>
     </header>
 
     <div className="sheet-body">
+      <div className="readiness-summary" role="status" aria-label={`${eligible.length} ready for review, ${retained.length} kept open`}>
+        <div className="readiness-summary-copy">
+          <p className="eyebrow">Sleep readiness</p>
+          <h3>{eligible.length ? `${plural(eligible.length, 'window')} ready for review` : 'Nothing is safe to close right now'}</h3>
+          <p>{retained.length ? `${plural(retained.length, 'item')} will stay open because ContextSleep could not prove a safe close path.` : 'Every captured item reached the review stage, but nothing closes until you explicitly select it.'}</p>
+        </div>
+        <div className="readiness-stats">
+          <div className="readiness-stat is-ready"><strong>{eligible.length}</strong><span>ready</span></div>
+          <div className="readiness-stat is-protected"><strong>{retained.length}</strong><span>protected</span></div>
+        </div>
+      </div>
       <p className="sheet-lede">
         Each selected window is checked again immediately before it closes. If anything changed, looks unsafe, or cannot be verified,
         ContextSleep stops the sequence instead of guessing.
@@ -38,7 +49,7 @@ export function ProjectCloseReview({review, onCancel, onApprove}: {review: Hiber
       </p>
 
       {!!eligible.length && <section className="review-group">
-        <h3><Badge tone="good" dot>Safe to sleep</Badge>{plural(eligible.length, 'window')}</h3>
+        <h3><Badge tone="good" dot>Ready for review</Badge>{plural(eligible.length, 'window')}</h3>
         <ul className="review-list">
           {eligible.map(s => {
             const body = s.snapshot?.body as {tabs?: {title: string; url: string}[]; groups?: {tabs: {label: string; uri?: string | null}[]}[]} | undefined;
@@ -63,7 +74,7 @@ export function ProjectCloseReview({review, onCancel, onApprove}: {review: Hiber
       </section>}
 
       {!!retained.length && <section className="review-group is-retained">
-        <h3><Badge tone="warn" dot>Kept open</Badge>{plural(retained.length, 'item')}</h3>
+        <h3><Badge tone="warn" dot>Protected - kept open</Badge>{plural(retained.length, 'item')}</h3>
         <p className="group-note">ContextSleep cannot safely identify or close these, so it leaves them alone. They may keep using memory.</p>
         <ul className="review-list">
           {retained.map(s => <li key={s.id}><div className="review-row is-static">

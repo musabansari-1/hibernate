@@ -106,6 +106,7 @@ const base: Dashboard = {
   ],
   memberships: [
     {client: 'vscode-a', target: 'vscode:hibernate', projectId: 'p1'},
+    {client: 'vscode-a', target: 'vscode:design-system', projectId: 'p2'},
     {client: 'chrome-a', target: 'chrome:41', projectId: 'p1'},
   ],
   memory: mem(5.4),
@@ -127,7 +128,8 @@ const base: Dashboard = {
 
 export function mockDashboard(stage: string): Dashboard {
   const d: Dashboard = JSON.parse(JSON.stringify(base));
-  d.memory = mem(5.4);
+  d.reports = d.reports.map(report => ({...report, at: Date.now() - 700}));
+  d.memory = stage === 'capture' ? mem(2.6) : mem(5.4);
   if (stage === 'connect') {
     d.reports = []; d.memberships = []; d.snapshots = []; d.services = []; d.serviceHealth = null; d.jobs = [];
     return d;
