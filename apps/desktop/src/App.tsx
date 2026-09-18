@@ -536,7 +536,7 @@ export function App() {
         <button type="button" className="btn btn-primary btn-lg" disabled={busy || !data || !isTauri()} onClick={() => chromeConnected ? void startSafeDemo() : goTo('integrations-setup')}>
           <Icon name={chromeConnected ? 'spark' : 'arrow'} />{chromeConnected ? 'Try the safe live demo' : 'Connect Chrome for live demo'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={() => setTourOpen(true)}><Icon name="play" />Watch real end-to-end demo</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setTourOpen(true)}><Icon name="play" />Watch full 60-second demo</button>
         <small>{chromeConnected ? 'The live demo uses only synthetic ContextSleep pages.' : 'The walkthrough works immediately; the live demo becomes available after Chrome connects.'}</small>
       </div>
       <div className="scope-strip" aria-label="Current support">
