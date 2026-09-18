@@ -18,6 +18,20 @@ import {Badge, Card, Empty, Evidence, Icon, SectionHead} from './components/ui';
 import {appLabel, describe, gb, gbExact, plural, relativeTime} from './lib/format';
 
 type View = 'workspace' | 'history' | 'settings';
+type AutoAdapterStatus = {
+  id: string;
+  label: string;
+  detected: boolean;
+  prepared: boolean;
+  connectionMode: string;
+  userAction: string | null;
+  error?: string | null;
+};
+type AutoIntegrationState = {
+  catalogVersion: number;
+  chromeExtensionPath?: string;
+  adapters: AutoAdapterStatus[];
+};
 
 const LIVE_WINDOW_MS = 15000;
 
@@ -60,6 +74,8 @@ export function App() {
   const [includeContext, setIncludeContext] = useState(false);
 
   const [chromePreparedPath, setChromePreparedPath] = useState('');
+  const [autoIntegrations, setAutoIntegrations] = useState<AutoIntegrationState>();
+  const autoIntegrationStarted = useRef(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
 
@@ -79,10 +95,33 @@ export function App() {
     dataRef.current = d; setData(d); return d;
   }
 
+  async function discoverAndPrepareApps(showNotice = false) {
+    if (!isTauri()) return;
+    try {
+      const result = await invoke<AutoIntegrationState>('auto_prepare_integrations');
+      setAutoIntegrations(result);
+      if (result.chromeExtensionPath) setChromePreparedPath(result.chromeExtensionPath);
+      if (showNotice) {
+        const detected = result.adapters.filter(a => a.detected).map(a => a.label);
+        setNotice(detected.length
+          ? `App discovery refreshed. ${detected.join(', ')} ${detected.length === 1 ? 'is' : 'are'} available to ContextSleep.`
+          : 'App discovery refreshed. Open a supported app and ContextSleep will pick it up automatically.');
+      }
+    } catch (e) {
+      if (showNotice) setError(String(e));
+    }
+  }
+
   useEffect(() => {
     void refresh().catch(e => setError(String(e)));
     const timer = setInterval(() => {if (document.visibilityState === 'visible') void refresh().catch(e => setError(String(e)));}, 3000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isTauri() || autoIntegrationStarted.current) return;
+    autoIntegrationStarted.current = true;
+    void discoverAndPrepareApps(false);
   }, []);
 
   useEffect(() => {
@@ -165,26 +204,6 @@ export function App() {
     await act(async () => {
       const result = await invoke<{detail: string}>('install_vscode_integration');
       setNotice(result.detail);
-    });
-  }
-
-  async function setupAppsAutomatically() {
-    await act(async () => {
-      const notes: string[] = [];
-      try {
-        const chrome = await invoke<{chromeExtensionPath: string; detail?: string}>('prepare_chrome_integration');
-        setChromePreparedPath(chrome.chromeExtensionPath);
-        notes.push(chrome.detail ?? 'Chrome prepared.');
-      } catch (e) {
-        notes.push(`Chrome setup needs attention: ${String(e)}`);
-      }
-      try {
-        const vscode = await invoke<{detail: string}>('install_vscode_integration');
-        notes.push(vscode.detail);
-      } catch (e) {
-        notes.push(`VS Code setup needs attention: ${String(e)}`);
-      }
-      setNotice(notes.join(' '));
     });
   }
 
@@ -280,6 +299,12 @@ export function App() {
   const liveIntegrations = liveReports.length;
   const chromeConnected = integrations.some(r => r.adapter === 'chrome' && connected(r.client));
   const vscodeConnected = integrations.some(r => r.adapter === 'vscode' && connected(r.client));
+  const chromeKnown = integrations.some(r => r.adapter === 'chrome');
+  const chromeAuto = autoIntegrations?.adapters.find(a => a.id === 'chrome');
+  const vscodeAuto = autoIntegrations?.adapters.find(a => a.id === 'vscode');
+  const detectedAutomaticApps = autoIntegrations?.adapters.filter(a => a.detected && ['chrome', 'vscode'].includes(a.id)) ?? [];
+  const chromeNeedsOneTimeApproval = !!chromeAuto?.detected && !chromeConnected && !chromeKnown;
+  const vscodeWaitingForWindow = !!vscodeAuto?.detected && !!vscodeAuto.prepared && !vscodeConnected;
   const connectedWindowCount = liveReports.reduce((sum, report) => sum + report.body.items.length, 0);
   const unassignedConnectedWindows = liveReports.reduce((sum, report) => sum + report.body.items.filter(item => {
     const target = memberKey(report, item);
@@ -333,12 +358,28 @@ export function App() {
   ];
 
   const connectHero = liveIntegrations === 0
-    ? {
-        title: 'Step 1: Connect Chrome or VS Code',
-        body: 'Click once to prepare both integrations. Chrome asks for one Load unpacked confirmation; after that, supported apps connect automatically.',
-        cta: 'Set up apps automatically', tone: 'setup',
-        onCta: () => void setupAppsAutomatically(),
-      }
+    ? chromeNeedsOneTimeApproval
+      ? {
+          title: 'Step 1: Chrome needs one browser approval',
+          body: 'ContextSleep already discovered Chrome and pre-registered its local bridge. Because this private beta uses an unpacked extension, Chrome requires one Load unpacked approval. After that, Chrome reconnects automatically on every launch.',
+          cta: 'Approve Chrome once', tone: 'setup',
+          onCta: () => void prepareChrome(),
+        }
+      : vscodeWaitingForWindow
+        ? {
+            title: 'Step 1: Apps are prepared automatically',
+            body: 'The VS Code adapter is already installed. Open or reload a trusted local project and ContextSleep will detect it automatically. No integration setup is required.',
+            cta: 'Refresh app discovery', tone: 'setup',
+            onCta: () => void discoverAndPrepareApps(true),
+          }
+        : {
+            title: 'Step 1: ContextSleep discovers supported apps automatically',
+            body: detectedAutomaticApps.length
+              ? `${detectedAutomaticApps.map(a => a.label).join(' and ')} ${detectedAutomaticApps.length === 1 ? 'is' : 'are'} installed. ContextSleep prepares supported adapters automatically and waits for a live window to report.`
+              : 'Open a supported app and ContextSleep will prepare its adapter automatically. Built-in folder and terminal context require no integration at all.',
+            cta: 'Refresh app discovery', tone: 'setup',
+            onCta: () => void discoverAndPrepareApps(true),
+          }
     : unassignedConnectedWindows > 0
       ? {
           title: 'Step 2: Add the windows you want to put away',
@@ -533,11 +574,11 @@ export function App() {
         </div>
       </div>
       <div className="quickstart-action">
-        <button type="button" className="btn btn-primary btn-lg" disabled={busy || !data || !isTauri()} onClick={() => chromeConnected ? void startSafeDemo() : goTo('integrations-setup')}>
-          <Icon name={chromeConnected ? 'spark' : 'arrow'} />{chromeConnected ? 'Try the safe live demo' : 'Connect Chrome for live demo'}
+        <button type="button" className="btn btn-primary btn-lg" disabled={busy || !data || !isTauri()} onClick={() => chromeConnected ? void startSafeDemo() : chromeNeedsOneTimeApproval ? void prepareChrome() : goTo('integrations-setup')}>
+          <Icon name={chromeConnected ? 'spark' : 'arrow'} />{chromeConnected ? 'Try the safe live demo' : chromeNeedsOneTimeApproval ? 'Approve Chrome once' : 'Open Chrome for live demo'}
         </button>
         <button type="button" className="btn btn-ghost" onClick={() => setTourOpen(true)}><Icon name="play" />Watch full 60-second demo</button>
-        <small>{chromeConnected ? 'The live demo uses only synthetic ContextSleep pages.' : 'The walkthrough works immediately; the live demo becomes available after Chrome connects.'}</small>
+        <small>{chromeConnected ? 'The live demo uses only synthetic ContextSleep pages.' : chromeNeedsOneTimeApproval ? 'This one browser approval is the only Chrome setup step in the private beta.' : 'ContextSleep discovers Chrome automatically when it is available.'}</small>
       </div>
       <div className="scope-strip" aria-label="Current support">
         <div><span className="scope-dot is-good" /><strong>Sleep + restore</strong><small>Chrome, VS Code, approved Node/Python services</small></div>
@@ -548,68 +589,82 @@ export function App() {
 
     {stageKey === 'connect' || connectionsOpen || integrations.length === 0 ? <section id="integrations-setup" className="block integrations-setup" aria-labelledby="connect-apps-title">
       <SectionHead
-        eyebrow="Connect apps"
+        eyebrow="App discovery"
         id="connect-apps-title"
-        title="Connect Chrome and VS Code"
-        description="One setup action prepares both integrations. Chrome still requires one Load unpacked confirmation; after that, both Chrome and VS Code connect automatically."
+        title="Supported apps connect automatically"
+        description="ContextSleep discovers installed supported apps, prepares their adapters in the background, and reconnects them whenever they are available. You only see a manual step when Windows or the app itself requires approval."
       />
       <div className="integration-auto-setup">
-        <button type="button" className="btn btn-primary btn-lg" disabled={busy || !isTauri()} onClick={() => void setupAppsAutomatically()}>
-          <Icon name="spark" />Set up apps automatically
+        <div>
+          <strong>{autoIntegrations ? `${autoIntegrations.adapters.filter(a => a.detected).length} supported adapters detected` : 'Discovering supported apps...'}</strong>
+          <small>Explorer and terminal context are built in. VS Code installs automatically. Chrome reconnects automatically after its one-time browser approval.</small>
+        </div>
+        <button type="button" className="btn btn-quiet" disabled={busy || !isTauri()} onClick={() => void discoverAndPrepareApps(true)}>
+          <Icon name="refresh" />Refresh discovery
         </button>
-        <small>ContextSleep installs VS Code, pre-registers Chrome, and opens Chrome's one required Load unpacked step.</small>
       </div>
       <div className="integration-setup-grid">
         <Card className={`integration-setup-card ${chromeConnected ? 'is-connected' : ''}`}>
           <div className="integration-setup-head">
             <span className="app-chip" data-app="chrome" aria-hidden="true">Ch</span>
             <div><h3>Chrome</h3><p>Tabs, order, pins, groups and reviewed close/restore.</p></div>
-            <Badge tone={chromeConnected ? 'good' : 'neutral'} dot>{chromeConnected ? 'Connected' : 'Not connected'}</Badge>
+            <Badge tone={chromeConnected ? 'good' : chromeKnown ? 'info' : chromeAuto?.detected ? 'warn' : 'neutral'} dot>
+              {chromeConnected ? 'Connected' : chromeKnown ? 'Ready automatically' : chromeAuto?.detected ? 'One approval needed' : 'Not installed'}
+            </Badge>
           </div>
-          {chromeConnected ? <p className="integration-success"><Icon name="check" />Chrome is reporting to ContextSleep.</p> : <>
-            <ol className="integration-steps">
-              <li><strong>Prepare Chrome</strong><span>ContextSleep pre-registers the local bridge and opens Chrome's extensions page plus the exact folder you need.</span></li>
-              <li><strong>Click Load unpacked once</strong><span>Select the opened folder. The extension has a stable ID, so no copy/paste step is needed.</span></li>
-              <li><strong>Wait for Connected</strong><span>The extension connects automatically as soon as Chrome loads it.</span></li>
-            </ol>
-            <div className="integration-actions">
-              <button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void prepareChrome()}><Icon name="folder" />Prepare Chrome</button>
-              {chromePreparedPath && <small className="integration-path">Folder: {chromePreparedPath}</small>}
-            </div>
-            <small className="muted-line">No extension ID, native-host registration, or manual Connect / refresh step is required.</small>
-          </>}
+          {chromeConnected ? <p className="integration-success"><Icon name="check" />Chrome reconnects automatically whenever it is available.</p>
+            : chromeKnown && chromeAuto?.detected ? <>
+              <p className="muted-line"><strong>Chrome has connected before.</strong> Just open Chrome and the existing extension will reconnect automatically. There is no setup to repeat.</p>
+              <div className="integration-actions">
+                <button type="button" className="btn btn-quiet" disabled={busy || !isTauri()} onClick={() => void discoverAndPrepareApps(true)}><Icon name="refresh" />Refresh discovery</button>
+              </div>
+            </> : chromeAuto?.detected ? <>
+              <p className="muted-line"><strong>Chrome was discovered automatically.</strong> ContextSleep has already prepared and registered the local bridge. The current private beta needs one Chrome approval because its extension is loaded unpacked.</p>
+              <div className="integration-actions">
+                <button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void prepareChrome()}><Icon name="check" />Approve Chrome once</button>
+                {chromePreparedPath && <small className="integration-path">ContextSleep opens the exact folder to choose.</small>}
+              </div>
+              <small className="muted-line">After that one approval there is no extension ID, registration, Connect, or refresh step on future launches.</small>
+            </> : <p className="muted-line">Chrome is not installed on this PC. There is nothing to configure; ContextSleep will discover it automatically if it appears later.</p>}
         </Card>
 
         <Card className={`integration-setup-card ${vscodeConnected ? 'is-connected' : ''}`}>
           <div className="integration-setup-head">
             <span className="app-chip" data-app="vscode" aria-hidden="true">VS</span>
             <div><h3>VS Code</h3><p>Workspace, editors and verified working-directory context.</p></div>
-            <Badge tone={vscodeConnected ? 'good' : 'neutral'} dot>{vscodeConnected ? 'Connected' : 'Not connected'}</Badge>
+            <Badge tone={vscodeConnected ? 'good' : vscodeAuto?.detected ? (vscodeAuto.prepared ? 'info' : 'warn') : 'neutral'} dot>
+              {vscodeConnected ? 'Connected' : vscodeAuto?.detected ? (vscodeAuto.prepared ? 'Ready automatically' : 'Needs retry') : 'Not installed'}
+            </Badge>
           </div>
-          {vscodeConnected ? <p className="integration-success"><Icon name="check" />VS Code is reporting to ContextSleep.</p> : <>
-            <ol className="integration-steps">
-              <li><strong>Install the integration</strong><span>ContextSleep installs the packaged VS Code extension and a stable local bridge.</span></li>
-              <li><strong>Open a trusted local project</strong><span>The integration connects automatically. If VS Code was already open, reload its window once.</span></li>
-            </ol>
-            <div className="integration-actions">
-              <button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void installVSCode()}><Icon name="download" />Install VS Code integration</button>
-            </div>
-            <small className="muted-line">Advanced users can still override the bridge with the existing hibernate.nativeHostPath setting.</small>
-          </>}
+          {vscodeConnected ? <p className="integration-success"><Icon name="check" />VS Code reconnects automatically whenever a trusted local project is open.</p>
+            : vscodeAuto?.detected && vscodeAuto.prepared ? <>
+              <p className="muted-line"><strong>The VS Code adapter was installed automatically.</strong> Open a trusted local project. If VS Code was already open when ContextSleep started, reload that window once and it will appear here.</p>
+              <small className="muted-line">No VSIX installation or bridge-path configuration is required.</small>
+            </> : vscodeAuto?.detected ? <>
+              <p className="muted-line">ContextSleep found VS Code, but its adapter could not be prepared automatically{vscodeAuto.error ? `: ${vscodeAuto.error}` : '.'}</p>
+              <div className="integration-actions">
+                <button type="button" className="btn btn-quiet" disabled={busy || !isTauri()} onClick={() => void installVSCode()}><Icon name="refresh" />Retry adapter install</button>
+              </div>
+            </> : <p className="muted-line">VS Code is not installed on this PC. If it is installed later, ContextSleep will discover and prepare it automatically.</p>}
         </Card>
       </div>
-      {!isTauri() && <p className="muted-line">Integration installation is available from the ContextSleep desktop app, not this browser preview.</p>}
+      <div className="scope-strip" aria-label="Built-in adapters">
+        <div><span className="scope-dot is-good" /><strong>Built in</strong><small>Explorer folder context</small></div>
+        <div><span className="scope-dot is-good" /><strong>Built in</strong><small>Verified terminal working directories</small></div>
+        <div><span className="scope-dot is-safe" /><strong>Scalable</strong><small>Future supported adapters are discovered automatically</small></div>
+      </div>
+      {!isTauri() && <p className="muted-line">Automatic app discovery runs in the ContextSleep desktop app, not this browser preview.</p>}
     </section> : <section id="integrations-setup" className="connection-summary" aria-label="App connections">
       <div>
-        <p className="eyebrow">App connections</p>
+        <p className="eyebrow">Automatic app discovery</p>
         <strong>{integrations.length} integration{integrations.length === 1 ? '' : 's'} known</strong>
-        <small>{liveIntegrations ? `${liveIntegrations} reporting right now.` : 'None reporting right now - sleeping apps can be offline.'}</small>
+        <small>{liveIntegrations ? `${liveIntegrations} reporting right now.` : 'Nothing reporting right now - supported apps reconnect automatically when available.'}</small>
       </div>
       <div className="connection-summary-badges">
         <Badge tone={chromeConnected ? 'good' : 'neutral'} dot>Chrome {chromeConnected ? 'live' : 'offline'}</Badge>
         <Badge tone={vscodeConnected ? 'good' : 'neutral'} dot>VS Code {vscodeConnected ? 'live' : 'offline'}</Badge>
       </div>
-      <button type="button" className="btn btn-quiet" onClick={() => {setConnectionsOpen(true); requestAnimationFrame(() => document.getElementById('integrations-setup')?.scrollIntoView({behavior: 'smooth', block: 'start'}));}}>Manage connections</button>
+      <button type="button" className="btn btn-quiet" onClick={() => {setConnectionsOpen(true); requestAnimationFrame(() => document.getElementById('integrations-setup')?.scrollIntoView({behavior: 'smooth', block: 'start'}));}}>View app discovery</button>
     </section>}
 
     <section id="apps" className="block" aria-labelledby="apps-title">
@@ -625,9 +680,9 @@ export function App() {
       />
 
       {!integrations.length && <Empty
-        title="No app is connected yet"
-        body="Open the bundled VS Code or Chrome integration and it appears here within a few seconds. Folder discovery works on its own."
-        action={<button type="button" className="btn btn-primary" onClick={() => {setSetupOpen(true); goTo('setup');}}>Show setup steps</button>}
+        title="Waiting for a supported app"
+        body="ContextSleep is already watching for supported apps. Open Chrome or a trusted local VS Code project; built-in folder and terminal context require no integration setup."
+        action={<button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void discoverAndPrepareApps(true)}>Refresh app discovery</button>}
       />}
 
       <div className="app-grid">

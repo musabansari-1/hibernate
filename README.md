@@ -23,7 +23,7 @@ npm.cmd run desktop
 
 ## Connect Chrome
 
-**Packaged beta:** use **Connect apps -> Set up apps automatically** in the desktop app. ContextSleep installs the VS Code integration, pre-registers Chrome using the bundled extension's stable ID, opens `chrome://extensions`, and opens the exact Chrome extension folder. In Chrome, enable Developer mode, click **Load unpacked** once, and select that folder. Chrome connects automatically after it loads - there is no extension-ID copy/paste or manual Connect step.
+**Packaged beta:** ContextSleep discovers supported apps automatically on startup. It silently installs/refreshes the VS Code adapter and pre-registers Chrome using the bundled extension's stable ID. VS Code reconnects automatically whenever a trusted local project opens. Chrome reconnects automatically after one unavoidable browser approval: enable Developer mode in `chrome://extensions`, click **Load unpacked** once, and select the folder ContextSleep opens for you. There is no extension-ID copy/paste or manual Connect step.
 
 Manual development fallback:
 
@@ -49,7 +49,7 @@ For cold restore, explicitly bind the enrolled Chrome profile once in the deskto
 
 ## Connect VS Code
 
-**Packaged beta:** use **Connect apps → Install VS Code integration** in the desktop app. ContextSleep installs the packaged VSIX, prepares a stable per-user native bridge, and the extension auto-connects when a trusted local project opens or reloads. `hibernate.nativeHostPath` is now an advanced override rather than a required first-run step.
+**Packaged beta:** no VS Code setup is required. ContextSleep detects VS Code on startup, installs/refreshes the packaged VSIX automatically, prepares a stable per-user native bridge, and the extension reconnects whenever a trusted local project opens or reloads. `hibernate.nativeHostPath` remains available only as an advanced override.
 
 An installable VSIX can be built using `npm.cmd run vscode:package`. Install the resulting `extensions/vscode/project-hibernate-0.1.0.vsix` through **Extensions: Install from VSIX**.
 

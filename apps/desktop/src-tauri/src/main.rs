@@ -155,7 +155,6 @@ fn prepare_integration_files() -> Result<serde_json::Value, String> {
     let chrome_source = if packaged_chrome.is_dir() { packaged_chrome } else { dev_chrome };
     if !chrome_source.is_dir() { return Err("Chrome integration files are missing. Rebuild the ContextSleep package first.".into()); }
     let chrome = stable.join("chrome-extension");
-    if chrome.exists() { std::fs::remove_dir_all(&chrome).map_err(|e| format!("Cannot refresh Chrome integration folder: {e}"))?; }
     copy_tree(&chrome_source, &chrome)?;
 
     let vsix_source = find_vsix(&root).ok_or("ContextSleep VS Code extension (.vsix) is missing")?;
@@ -174,6 +173,46 @@ fn prepare_integration_files() -> Result<serde_json::Value, String> {
 }
 
 const CHROME_EXTENSION_ID: &str = "lilgdmjjanejoihlpegfklkfaofebfhn";
+const VSCODE_EXTENSION_ID: &str = "project-hibernate.project-hibernate";
+
+fn chrome_executable()->Option<std::path::PathBuf>{[
+    std::env::var_os("PROGRAMFILES").map(std::path::PathBuf::from).map(|p|p.join("Google\\Chrome\\Application\\chrome.exe")),
+    std::env::var_os("PROGRAMFILES(X86)").map(std::path::PathBuf::from).map(|p|p.join("Google\\Chrome\\Application\\chrome.exe")),
+    std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from).map(|p|p.join("Google\\Chrome\\Application\\chrome.exe")),
+].into_iter().flatten().find(|p|p.is_file())}
+fn vscode_cli()->Option<std::path::PathBuf>{
+    let mut candidates=Vec::new();
+    if let Some(local)=std::env::var_os("LOCALAPPDATA"){candidates.push(std::path::PathBuf::from(local).join("Programs\\Microsoft VS Code\\bin\\code.cmd"));}
+    if let Some(program_files)=std::env::var_os("PROGRAMFILES"){candidates.push(std::path::PathBuf::from(program_files).join("Microsoft VS Code\\bin\\code.cmd"));}
+    if let Some(program_files)=std::env::var_os("PROGRAMFILES(X86)"){candidates.push(std::path::PathBuf::from(program_files).join("Microsoft VS Code\\bin\\code.cmd"));}
+    candidates.into_iter().find(|p|p.is_file())
+}
+fn vscode_extension_is_installed(code:&std::path::Path)->bool{
+    std::process::Command::new(code).arg("--list-extensions").output().ok().filter(|o|o.status.success()).map(|o|String::from_utf8_lossy(&o.stdout).lines().any(|line|line.trim().eq_ignore_ascii_case(VSCODE_EXTENSION_ID))).unwrap_or(false)
+}
+fn install_vscode_vsix(code:&std::path::Path,vsix:&str)->Result<(),String>{
+    let output=std::process::Command::new(code).args(["--install-extension",vsix,"--force"]).output().map_err(|e|format!("Could not start the VS Code installer: {e}"))?;
+    if output.status.success(){Ok(())}else{let detail=String::from_utf8_lossy(&output.stderr).trim().to_string();Err(if detail.is_empty(){"VS Code extension installation failed.".into()}else{detail})}
+}
+#[tauri::command]
+fn auto_prepare_integrations()->Result<serde_json::Value,String>{
+    let info=prepare_integration_files()?;
+    let chrome_detected=chrome_executable().is_some();
+    let chrome_registration=if chrome_detected{match register_chrome_integration(CHROME_EXTENSION_ID.to_string()){Ok(_)=>serde_json::json!({"prepared":true}),Err(e)=>serde_json::json!({"prepared":false,"error":e})}}else{serde_json::json!({"prepared":false})};
+    let code=vscode_cli();
+    let mut vscode_prepared=false;
+    let mut vscode_error:Option<String>=None;
+    if let Some(code_path)=code.as_deref(){
+        vscode_prepared=vscode_extension_is_installed(code_path);
+        if !vscode_prepared{let vsix=info["vsixPath"].as_str().ok_or("ContextSleep VS Code extension package is unavailable")?;match install_vscode_vsix(code_path,vsix){Ok(())=>vscode_prepared=true,Err(e)=>vscode_error=Some(e)}}
+    }
+    Ok(serde_json::json!({"catalogVersion":1,"chromeExtensionPath":info["chromeExtensionPath"],"adapters":[
+        {"id":"chrome","label":"Chrome","detected":chrome_detected,"prepared":chrome_registration["prepared"],"connectionMode":"browser-extension","userAction":if chrome_detected{serde_json::Value::String("approve-extension-once".into())}else{serde_json::Value::Null},"error":chrome_registration.get("error").cloned().unwrap_or(serde_json::Value::Null)},
+        {"id":"vscode","label":"VS Code","detected":code.is_some(),"prepared":vscode_prepared,"connectionMode":"auto-installed-extension","userAction":serde_json::Value::Null,"error":vscode_error},
+        {"id":"explorer","label":"Explorer","detected":true,"prepared":true,"connectionMode":"built-in-native","userAction":serde_json::Value::Null,"error":serde_json::Value::Null},
+        {"id":"terminal-context","label":"Terminal context","detected":true,"prepared":true,"connectionMode":"built-in-native","userAction":serde_json::Value::Null,"error":serde_json::Value::Null}
+    ]}))
+}
 
 #[tauri::command]
 fn prepare_chrome_integration() -> Result<serde_json::Value, String> {
@@ -287,6 +326,7 @@ fn main() {
             restore_folder,
             restore_context_item,
             open_vscode_snapshot,
+            auto_prepare_integrations,
             prepare_chrome_integration,
             register_chrome_integration,
             install_vscode_integration
