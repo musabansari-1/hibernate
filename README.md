@@ -6,6 +6,8 @@ A local-first Windows app for putting a **development workspace** away and recon
 
 ## Run
 
+Open Windows apps now appear automatically without an adapter setup step. Select app contexts alongside Chrome/VS Code entries and save one workspace checkpoint. Generic context saves window/executable metadata and may reopen an eligible unchanged app executable; it **does not capture documents or unsaved state, automatically close unknown apps, or verify their working state**. Specialized adapters add capabilities only where supported. See [architecture and boundaries](docs/GENERIC-APP-ARCHITECTURE.md).
+
 The compiled desktop application is `apps/desktop/src-tauri/target/release/project-hibernate.exe` after `npm.cmd run desktop:build`.
 
 Development prerequisites: Windows 10/11, WebView2, Node 22.12+ (tested on Node 24), Rust MSVC toolchain and Visual Studio C++ build tools.

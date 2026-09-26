@@ -30,14 +30,15 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
   const services = c.body.services ?? [];
   // Restore only opens things. Parts are pre-selected for convenience; restarting a
   // saved service command is never pre-selected and still needs explicit approval.
-  const [selected, setSelected] = useState<string[]>(() => entries.map(e => e.id));
+  const defaultParts = () => entries.filter(e => e.kind !== 'windows-generic').map(e => e.id);
+  const [selected, setSelected] = useState<string[]>(defaultParts);
   const [approvedServices, setApprovedServices] = useState(false);
   const [review, setReview] = useState<HibernationRun>();
   useEffect(() => {
     setSelected(current => {
       const ids = new Set(entries.map(e => e.id));
       const kept = current.filter(id => ids.has(id) || id === 'services');
-      return kept.length ? kept : entries.map(e => e.id);
+      return kept.length ? kept : defaultParts();
     });
   }, [c.id, entries.length]);
 
@@ -66,7 +67,7 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
         <small>Captured {relativeTime(c.created)} - {captured} of {c.body.captures.length} contexts saved</small>
       </div>
       <Badge tone={asleep ? 'info' : isReady ? 'ready' : c.state === 'capturing' ? 'info' : 'good'} dot>
-        {c.state === 'capturing' ? 'Capturing' : asleep ? 'Asleep' : isReady ? 'Ready' : 'Saved'}
+        {c.state === 'capturing' ? 'Capturing' : asleep ? 'Selected parts asleep' : isReady ? 'Ready' : 'Saved'}
       </Badge>
     </header>
 
@@ -78,7 +79,7 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
     {asleep && <div className="sleep-success" role="status">
       <span className="sleep-success-icon" aria-hidden="true"><Icon name="moon" /></span>
       <div>
-        <p className="eyebrow">Workspace asleep</p>
+        <p className="eyebrow">Selected parts asleep</p>
         <h3>Context is saved. The reviewed windows are closed.</h3>
         <p>{sleepChange == null ? 'Restore whenever you are ready.' : `Windows reported ${signedGb(sleepChange)} change in system available memory during this sleep.`}</p>
       </div>
@@ -101,12 +102,12 @@ export function CheckpointCard({checkpoint: c, busy, restore, reviewClose, close
 
       <section className={`lane lane-restore ${asleep ? 'is-primary' : ''}`}>
         <h4><Icon name="refresh" />Bring it back</h4>
-        <p>Chrome restores tabs lazily. Terminals open a fresh shell without replaying commands. Offline VS Code workspaces are reopened so their integration can reconnect.</p>
+        <p>Choose what to restore. Generic app context only checks app presence or reopens the captured executable with no arguments. Its documents and internal state remain unverified.</p>
         <ul className="part-list">
           {entries.map(e => <li key={e.id}>
             <label>
               <input type="checkbox" disabled={busy} checked={selected.includes(e.id)} onChange={v => toggle(e.id, v.target.checked)} />
-              <span>{e.label}</span>
+              <span>{e.label}{e.kind === 'windows-generic' && <small>{e.detail}<br />{e.executable}</small>}</span>
             </label>
           </li>)}
           {!!services.length && <li className="part-service">

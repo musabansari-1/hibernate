@@ -33,7 +33,7 @@ pub fn open_at(path: PathBuf) -> R<Connection> {
         .optional()
         .map_err(err)?;
     match version.as_deref() {
-        None | Some("1") | Some("2") | Some("3") | Some("4") | Some("5") => (),
+        None | Some("1") | Some("2") | Some("3") | Some("4") | Some("5") | Some("6") => (),
         _ => {
             return Err("Database schema is newer than this app. No snapshots were changed.".into())
         }
@@ -58,7 +58,8 @@ pub fn open_at(path: PathBuf) -> R<Connection> {
     crate::checkpoints::migrate(&c)?;
     crate::hibernation::migrate(&c)?;
     crate::native_close::migrate(&c)?;
-    c.execute("INSERT OR REPLACE INTO meta VALUES('schema','5')", [])
+    crate::app_context::migrate(&c)?;
+    c.execute("INSERT OR REPLACE INTO meta VALUES('schema','6')", [])
         .map_err(err)?;
     c.execute_batch("COMMIT").map_err(err)?;
     Ok(c)
@@ -71,6 +72,8 @@ pub fn snapshot(c: &Connection, id: &str) -> R<Value> {
 }
 pub fn dashboard() -> R<Value> {
     let mut c = open()?;
+    let apps = crate::app_context::discover()
+        .unwrap_or_else(|e| json!({"at":crate::now(),"items":[],"error":e}));
     crate::native_close::reconcile(&mut c)?;
     let mut rs = c
         .prepare("SELECT client,adapter,at,body FROM reports ORDER BY at DESC")
@@ -109,7 +112,7 @@ pub fn dashboard() -> R<Value> {
         })
         .collect();
     Ok(
-        json!({"checkpoints":checkpoints,"memory":crate::platform::memory()?,"windows":crate::platform::windows()?,"explorer":explorer,"reports":reports,"chromeLaunches":chrome_launches,"snapshots":snapshots,"jobs":jobs,"workspace":workspace,"projects":crate::projects::list(&c)?,"memberships":crate::projects::members(&c)?,"services":crate::health::list(&c,project_id)?,"serviceHealth":health.map(parse).transpose().map_err(err)?}),
+        json!({"apps":apps,"adapterCatalog":crate::adapters::catalog(),"checkpoints":checkpoints,"memory":crate::platform::memory()?,"windows":crate::platform::windows()?,"explorer":explorer,"reports":reports,"chromeLaunches":chrome_launches,"snapshots":snapshots,"jobs":jobs,"workspace":workspace,"projects":crate::projects::list(&c)?,"memberships":crate::projects::members(&c)?,"services":crate::health::list(&c,project_id)?,"serviceHealth":health.map(parse).transpose().map_err(err)?}),
     )
 }
 pub fn save_workspace(name: String, project_path: String) -> R<()> {
@@ -199,6 +202,9 @@ fn enqueue_checked(
     {
         return Err("Unsupported action".into());
     }
+    if client == crate::adapters::NATIVE_CLIENT {
+        return Err("Native app context has no integration command or close channel".into());
+    }
     if ["close", "quick_sleep"].contains(&action.as_str()) && !reviewed {
         return Err("Use the snapshot review before closing or parking user work".into());
     }
@@ -286,6 +292,11 @@ pub fn handle(c: &mut Connection, req: &Value) -> R<Value> {
         .as_str()
         .filter(|s| !s.is_empty() && s.len() < 200)
         .ok_or("Invalid client")?;
+    if client == crate::adapters::NATIVE_CLIENT {
+        return Err(
+            "Native discovery identity is reserved; integration messages cannot claim it".into(),
+        );
+    }
     match op {
         "prepareTerminal" => crate::terminal::prepare_vscode(
             c,
@@ -593,6 +604,16 @@ mod tests {
         );
     }
     #[test]
+    fn native_discovery_namespace_cannot_be_claimed_by_an_extension() {
+        let (mut c, _) = db();
+        assert!(handle(&mut c,&json!({"op":"poll","client":crate::adapters::NATIVE_CLIENT,"adapter":"chrome","body":{"items":[]}})).is_err());
+        assert!(handle(&mut c,&json!({"op":"save","client":"extension","body":{"version":1,"adapter":crate::adapters::GENERIC}})).is_err());
+        let count: i64 = c
+            .query_row("SELECT COUNT(*) FROM generic_origins", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    #[test]
     fn another_profile_cannot_update_a_snapshot() {
         let (mut c, _) = db();
         let s = save(&mut c);
@@ -681,7 +702,7 @@ mod tests {
             c.query_row("SELECT body FROM meta WHERE key='schema'", [], |r| r
                 .get::<_, String>(0))
                 .unwrap(),
-            "5"
+            "6"
         );
         assert_eq!(
             c.query_row("SELECT COUNT(*) FROM hibernation_jobs", [], |r| r

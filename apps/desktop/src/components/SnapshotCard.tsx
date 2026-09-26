@@ -55,6 +55,7 @@ export function SnapshotCard({snapshot: s, busy, connected, resume, openVSCode, 
     project?: {name: string};
     explorer?: {items: {url: string}[]};
     terminal?: {cwd?: string; items?: {cwd: string; source?: string; verifiedPrompt?: boolean}[]};
+    reconstruction?: {summary?: string};
   };
   const label = appLabel(s.adapter);
   const state = s.adapter === 'chrome' && s.state === 'verified'
@@ -73,7 +74,7 @@ export function SnapshotCard({snapshot: s, busy, connected, resume, openVSCode, 
       <Badge tone={state.tone}>{state.label}</Badge>
     </header>
 
-    {s.adapter !== 'context' && <div className="snapshot-actions">
+    {['chrome', 'vscode'].includes(s.adapter) && <div className="snapshot-actions">
       {!s.archived && ['captured', 'blocked'].includes(s.state) && connected &&
         <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => setReview(true)}><Icon name="moon" />Review and sleep</button>}
       {s.adapter === 'vscode' && !connected &&
@@ -88,7 +89,8 @@ export function SnapshotCard({snapshot: s, busy, connected, resume, openVSCode, 
         <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => restoreContext('terminal', 0)}>Open saved terminal folder</button>}
     </div>}
 
-    {s.adapter !== 'context' && !connected && <p className="muted-line">Connect the original Chrome profile or VS Code workspace integration to restore and verify this.</p>}
+    {['chrome', 'vscode'].includes(s.adapter) && !connected && <p className="muted-line">Connect the original Chrome profile or VS Code workspace integration to restore and verify this.</p>}
+    {s.adapter === 'windows-generic' && <p className="muted-line">{body.reconstruction?.summary ?? 'App and window metadata only. Automatic close and semantic restore are unavailable.'} Use the saved checkpoint to review app relaunch; imported context never grants launch authority.</p>}
 
     {s.after && <Measurements before={s.before} after={s.after} chrome={s.adapter === 'chrome'} />}
     {s.result != null && <VerificationResult value={s.result} />}

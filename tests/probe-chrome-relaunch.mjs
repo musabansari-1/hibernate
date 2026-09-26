@@ -5,7 +5,7 @@ import {mkdir,readdir,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 const run=resolve('.validation/chrome-relaunch-probe/run-'+Date.now());await mkdir(run,{recursive:true});
 const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data')};
-const host=resolve('native/target/debug/hibernate-host.exe'),extension=resolve('extensions/chrome/dist');
+const host=resolve('native/target/debug/hibernate-host.exe'),extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));
 const versions=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(v=>/^chromium-\d+$/.test(v)).sort().reverse();
 const executable=join(process.env.LOCALAPPDATA,'ms-playwright',versions[0],'chrome-win64','chrome.exe'),profile=join(run,'profile');
 const dash=async()=>JSON.parse((await promisify(execFile)(host,['--diagnose'],{env,windowsHide:true,maxBuffer:8_000_000})).stdout);

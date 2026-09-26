@@ -3,6 +3,7 @@ import {invoke, isTauri} from '@tauri-apps/api/core';
 import type {Dashboard, Snapshot, HibernationRun} from '../../../packages/core/model';
 import {associate, normalizeWindowsPath, pruneSelectedTargets, type ProjectSignal} from '../../../packages/core/projects';
 import {interruptedRecoveryKey} from '../../../packages/core/recovery';
+import {withNativeDiscovery} from '../../../packages/core/app-discovery';
 import {SnapshotCard} from './components/SnapshotCard';
 import {CheckpointCard} from './components/CheckpointCard';
 import {ProjectDiscovery} from './components/ProjectDiscovery';
@@ -81,7 +82,7 @@ export function App() {
 
   async function refresh() {
     if (!isTauri()) return;
-    const d = await invoke<Dashboard>('dashboard');
+    const d = withNativeDiscovery(await invoke<Dashboard>('dashboard'));
     if (dataRef.current?.workspace.id !== d.workspace.id) {
       setName(d.workspace.name); setPath(d.workspace.projectPath); setSelected([]); setRepository(undefined);
       setHistory(null); setArchived(false); setHistoryLimit(30); historyOptions.current = {archived: false, limit: 30};
@@ -173,7 +174,7 @@ export function App() {
   const connected = (client: string) => integrations.some(r => r.client === client && Date.now() - r.at < LIVE_WINDOW_MS);
   const memberKey = (report: {client: string}, item: {id: string; membershipKey?: string}) => item.membershipKey ?? item.id;
   const assignedKeys = useMemo(() => integrations.flatMap(r =>
-    r.body.items.filter(i => data?.memberships.some(m => m.projectId === projectId && m.client === r.client && m.target === memberKey(r, i)))
+    r.body.items.filter(i => i.capturable !== false && data?.memberships.some(m => m.projectId === projectId && m.client === r.client && m.target === memberKey(r, i)))
       .map(i => JSON.stringify([r.client, i.id]))), [integrations, data?.memberships, projectId]);
 
   async function capture(targetKeys: string[]) {
@@ -215,6 +216,7 @@ export function App() {
       let alreadyAssignedElsewhere = 0;
       for (const report of current.reports.filter(r => Date.now() - r.at < LIVE_WINDOW_MS)) {
         for (const item of report.body.items) {
+          if (item.capturable === false) continue;
           const target = item.membershipKey ?? item.id;
           const existing = current.memberships.find(m => m.client === report.client && m.target === target);
           if (existing) {
@@ -227,8 +229,8 @@ export function App() {
       }
       if (!added) {
         setNotice(alreadyAssignedElsewhere
-          ? 'No unassigned windows were available. Some connected windows already belong to another workspace; review them below if you want to move one.'
-          : 'No new connected windows were found yet. Open Chrome or VS Code and wait a few seconds.');
+          ? 'No unassigned windows were available. Some windows already belong to another workspace; review them below if you want to move one.'
+          : 'No new Windows app windows were found yet. Open an application and wait a few seconds.');
         return;
       }
       setNotice(`${added} ${added === 1 ? 'window' : 'windows'} added to this workspace.${alreadyAssignedElsewhere ? ` ${alreadyAssignedElsewhere} already belonged to another workspace and ${alreadyAssignedElsewhere === 1 ? 'was' : 'were'} left unchanged.` : ''}`);
@@ -411,7 +413,7 @@ export function App() {
       onCta: () => goTo('checkpoint'),
     },
     restore: {
-      title: 'Workspace asleep. Bring it back when you need it.',
+      title: 'Selected parts asleep. Bring them back when you need them.',
       body: 'The reviewed windows closed and the recovery checkpoint stayed on this PC. Restore it and ContextSleep will verify what actually returned.',
       cta: 'Bring workspace back', tone: 'asleep',
       onCta: () => goTo('checkpoint'),
@@ -591,8 +593,8 @@ export function App() {
       <SectionHead
         eyebrow="App discovery"
         id="connect-apps-title"
-        title="Supported apps connect automatically"
-        description="ContextSleep discovers installed supported apps, prepares their adapters in the background, and reconnects them whenever they are available. You only see a manual step when Windows or the app itself requires approval."
+        title="Windows apps are discovered automatically"
+        description="Open apps appear below without a connection step. Specialized adapters add deeper capture and restore where the application exposes reliable state."
       />
       <div className="integration-auto-setup">
         <div>
@@ -651,7 +653,7 @@ export function App() {
       <div className="scope-strip" aria-label="Built-in adapters">
         <div><span className="scope-dot is-good" /><strong>Built in</strong><small>Explorer folder context</small></div>
         <div><span className="scope-dot is-good" /><strong>Built in</strong><small>Verified terminal working directories</small></div>
-        <div><span className="scope-dot is-safe" /><strong>Scalable</strong><small>Future supported adapters are discovered automatically</small></div>
+        <div><span className="scope-dot is-safe" /><strong>Windows apps</strong><small>Generic app context without setup; automatic close stays blocked</small></div>
       </div>
       {!isTauri() && <p className="muted-line">Automatic app discovery runs in the ContextSleep desktop app, not this browser preview.</p>}
     </section> : <section id="integrations-setup" className="connection-summary" aria-label="App connections">
@@ -680,10 +682,12 @@ export function App() {
       />
 
       {!integrations.length && <Empty
-        title="Waiting for a supported app"
-        body="ContextSleep is already watching for supported apps. Open Chrome or a trusted local VS Code project; built-in folder and terminal context require no integration setup."
+        title="Waiting for an open app"
+        body="ContextSleep discovers visible Windows app windows automatically. Generic capture saves window and executable context; specialized adapters can preserve more."
         action={<button type="button" className="btn btn-primary" disabled={busy || !isTauri()} onClick={() => void discoverAndPrepareApps(true)}>Refresh app discovery</button>}
       />}
+
+      {data?.apps?.error && <p className="inline-alert is-warn" role="status">Windows discovery unavailable: {data.apps.error}</p>}
 
       <div className="app-grid">
         {integrations.map(report => {
@@ -695,7 +699,7 @@ export function App() {
                 <strong>{report.body.label}</strong>
                 <small>{plural(report.body.items.length, 'window')}</small>
               </div>
-              <Badge tone={live ? 'good' : 'neutral'} dot>{live ? 'Connected' : 'Offline'}</Badge>
+              <Badge tone={live ? 'good' : 'neutral'} dot>{live ? report.adapter === 'windows-generic' ? 'Discovered' : 'Connected' : 'Offline'}</Badge>
             </header>
             <ul className="window-list">
               {report.body.items.map(item => {
@@ -705,7 +709,7 @@ export function App() {
                 const mine = assigned === projectId;
                 return <li key={item.id} className={`window-row ${selected.includes(key) ? 'is-selected' : ''}`}>
                   <label className="window-pick">
-                    <input type="checkbox" aria-label={`Select ${item.title}`} disabled={busy || !live}
+                    <input type="checkbox" aria-label={`Select ${item.title}`} disabled={busy || !live || item.capturable === false}
                       checked={selected.includes(key)}
                       onChange={e => setSelected(s => e.target.checked ? [...s, key] : s.filter(k => k !== key))} />
                   </label>
@@ -715,6 +719,7 @@ export function App() {
                     <small className="window-compat">{item.compatibility}</small>
                   </div>
                   <div className="window-assign">
+                    {item.nativeGroup && <button type="button" className="btn btn-ghost" disabled={busy || !live} onClick={() => setSelected(s => [...new Set([...s,...report.body.items.filter(i => i.nativeGroup === item.nativeGroup && i.capturable !== false).map(i => JSON.stringify([report.client,i.id]))])])}>Select app group</button>}
                     {mine && <Badge tone="good">This workspace</Badge>}
                     <select aria-label={`Workspace for ${item.title}`} disabled={busy} value={assigned}
                       onChange={e => void act(() => invoke('assign_project', {client: report.client, target: membershipTarget, projectId: e.target.value || null}))}>
@@ -740,7 +745,7 @@ export function App() {
         })}
       </div>
 
-      {!!integrations.length && <div className="capture-bar">
+      {data && <div className="capture-bar">
         <label className="option-row">
           <input type="checkbox" disabled={busy || !path} checked={includeContext} onChange={e => setIncludeContext(e.target.checked)} />
           <span>
@@ -882,8 +887,8 @@ export function App() {
           await invoke('create_project', {name: newName, projectPath: newPath});
           setCreating(false); setNewName(''); setNewPath('');
         });}}>
-          <label>Name<input value={newName} onChange={e => setNewName(e.target.value)} required /></label>
-          <label>Folder<input value={newPath} onChange={e => setNewPath(e.target.value)} placeholder="D:\projects\my-project" /></label>
+          <label>Name<input aria-label="New project name" value={newName} onChange={e => setNewName(e.target.value)} required /></label>
+          <label>Folder<input aria-label="Project folder" value={newPath} onChange={e => setNewPath(e.target.value)} placeholder="D:\projects\my-project" /></label>
           <button type="submit" className="btn btn-primary" disabled={busy}>Create</button>
         </form>
       </Card>}
@@ -902,8 +907,8 @@ export function App() {
       <Card className="settings-card">
         <h3>Active workspace</h3>
         <div className="field-grid">
-          <label>Name<input disabled={!data || busy} value={name} onChange={e => setName(e.target.value)} /></label>
-          <label>Folder<input disabled={!data || busy} value={path} onChange={e => setPath(e.target.value)} placeholder="D:\projects\my-project" /></label>
+          <label>Name<input aria-label="Workspace name" disabled={!data || busy} value={name} onChange={e => setName(e.target.value)} /></label>
+          <label>Folder<input aria-label="Project folder (manual association)" disabled={!data || busy} value={path} onChange={e => setPath(e.target.value)} placeholder="D:\projects\my-project" /></label>
           <button type="button" className="btn btn-quiet" disabled={busy || !data} onClick={() => void act(() => invoke('save_workspace', {name, projectPath: path}))}>Save</button>
         </div>
       </Card>

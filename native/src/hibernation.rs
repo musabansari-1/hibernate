@@ -24,7 +24,9 @@ fn eligible(c: &Connection, s: &Value, project: &Value) -> R<()> {
     if s["body"]["project"]["id"] != project["id"] {
         return Err("Snapshot belongs to another project".into());
     }
-    if !["chrome", "vscode"].contains(&s["adapter"].as_str().unwrap_or("")) {
+    if !crate::adapters::descriptor(s["adapter"].as_str().unwrap_or(""))
+        .is_some_and(|d| d.reviewed_close)
+    {
         return Err("Automatic close is not supported for this context".into());
     }
     if s["body"]["version"] != 1 {
@@ -93,7 +95,11 @@ fn review_body(c: &Connection, id: &str) -> R<Value> {
                 Err(e) => step["detail"] = json!(e),
             }
         } else {
-            step["detail"] = json!("Automatic close is not supported for this context.");
+            step["detail"] = json!(if entry["kind"] == crate::adapters::GENERIC {
+                "Keep open — no exact window lifetime, saved-work reconstruction, or conditional close contract is proven. Application relaunch alone is insufficient for Sleep."
+            } else {
+                "Automatic close is not supported for this context."
+            });
         }
         steps.push(step);
     }

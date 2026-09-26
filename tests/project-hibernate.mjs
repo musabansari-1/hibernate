@@ -10,29 +10,30 @@ const root=resolve('.validation/project-hibernate'),run=join(root,'run-'+Date.no
 await mkdir(project,{recursive:true});
 const server=createServer((req,res)=>res.end(`<title>Project close ${req.url.slice(1)}</title><p>Owned saved fixture page</p>`));await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 const port=await new Promise(r=>{const s=netServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
-const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port}`};
+const env={...process.env,HIBERNATE_TEST_DISCOVERY_EXECUTABLES:'[]',HIBERNATE_DATA_DIR:join(run,'data'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port}`};
 const host=process.env.HIBERNATE_TEST_HOST??resolve('native/target/debug/hibernate-host.exe'),exe=process.env.HIBERNATE_TEST_DESKTOP??resolve('apps/desktop/src-tauri/target/release/project-hibernate.exe');
 function dashboard(){const p=spawnSync(host,['--diagnose'],{env,windowsHide:true,encoding:'utf8'});assert.equal(p.status,0,p.stderr);return JSON.parse(p.stdout);}
 async function until(fn,label,timeout=65000){const deadline=Date.now()+timeout;while(Date.now()<deadline){const v=await fn();if(v)return v;await new Promise(r=>setTimeout(r,300));}throw new Error('Timed out: '+label);}
 const versions=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(p=>/^chromium-\d+$/.test(p)).sort().reverse();
-const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',versions[0],'chrome-win64','chrome.exe'),extension=resolve('extensions/chrome/dist');
+const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',versions[0],'chrome-win64','chrome.exe'),extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));
 let chrome,desktop,webview,page,sw;const errors=[],checks=[];
 async function capture(names){
- for(const checkbox of await page.locator('.integration .item input[type=checkbox]').all())await checkbox.uncheck();
+ for(const checkbox of await page.locator('.app-card input[type=checkbox]').all())await checkbox.uncheck();
+ await page.getByRole('button',{name:'Workspace',exact:true}).click();
  for(const name of names)await page.getByLabel(`Select Project close ${name}`,{exact:true}).check();
- await page.getByLabel('Include project Explorer folders and a new terminal definition').check();
+ await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByLabel('Include folders and terminals').check();
  const previous=dashboard().checkpoints[0]?.id;
- await page.getByRole('button',{name:'Capture & review workspace sleep',exact:true}).click();
+ await page.getByRole('button',{name:'Save this workspace',exact:true}).click();
  const checkpoint=await until(()=>{const c=dashboard().checkpoints[0];return c&&c.id!==previous&&['captured','partial'].includes(c.state)?c:null;},'new checkpoint');
  assert.equal(checkpoint.state,'captured',JSON.stringify(checkpoint.body.captures));return checkpoint;
 }
 async function approve(){
- await page.locator('.checkpoint').first().getByRole('button',{name:'Review workspace sleep',exact:true}).click();
- const dialog=page.getByRole('dialog',{name:'Review workspace sleep'});await dialog.waitFor();
- assert.ok(await dialog.getByText('Retained / cannot close',{exact:false}).count()>0);
- await dialog.getByRole('button',{name:'Select supported windows',exact:true}).click();
- await dialog.getByRole('checkbox',{name:'I have saved the work in every selected window and reviewed what can be reconstructed.',exact:true}).check();
- await dialog.getByRole('button',{name:'Sleep selected windows',exact:true}).click();
+ await page.locator('.checkpoint').first().getByRole('button', { name: 'Check sleep readiness',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'What can sleep right now?'});await dialog.waitFor();
+ assert.ok(await dialog.getByText('Protected - kept open',{exact:false}).count()>0);
+ await dialog.getByRole('button',{name:'Select all safe',exact:true}).click();
+ await dialog.getByRole('checkbox',{name:'I saved the work in every selected window and reviewed what can be reconstructed.',exact:true}).check();
+ await dialog.getByRole('button', { name: /^Sleep \d+ windows?$/,exact:true}).click();
  return until(()=>{const h=dashboard().checkpoints[0]?.hibernations[0];return h&&['blocked','partial','closed-selected'].includes(h.state)?h:null;},'project close result');
 }
 async function present(ids){return sw.evaluate(async ids=>{const windows=await chrome.windows.getAll();return ids.map(id=>windows.some(w=>w.id===id));},ids);}
@@ -42,7 +43,7 @@ try{
  await sw.evaluate(async id=>{const tabs=await chrome.tabs.query({windowId:id});const group=await chrome.tabs.group({tabIds:[tabs[0].id],createProperties:{windowId:id}});await chrome.tabGroups.update(group,{title:'Project research',color:'blue'});},ids[1]);
  await until(()=>dashboard().reports.some(r=>ids.every(id=>r.body.items.some(i=>i.id===String(id)))),'fixture reports');
  desktop=spawn(exe,[],{env,windowsHide:true,stdio:'ignore'});webview=await until(async()=>{try{return await chromium.connectOverCDP(`http://127.0.0.1:${port}`);}catch{return null;}},'desktop');page=webview.contexts()[0].pages()[0];page.on('pageerror',e=>errors.push(e.message));
- await page.getByLabel('Workspace name').fill('Project Hibernate fixture');await page.getByLabel('Project folder (manual association)').fill(project);await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Workspace name').fill('Project Hibernate fixture');await page.getByLabel('Project folder (manual association)').fill(project);await page.getByRole('button',{name:'Save',exact:true}).click();await page.getByRole('button',{name:'Workspace',exact:true}).click();
  await capture(['a','b','c']);
  await sw.evaluate(({id,url})=>chrome.tabs.create({windowId:id,url,active:false}),{id:ids[1],url:origin+'/changed-before-review'});
  const blocked=await approve();assert.equal(blocked.state,'blocked');assert.deepEqual(await present(ids),[true,true,true]);assert.ok(blocked.body.steps.some(s=>s.state==='blocked'));assert.ok(blocked.body.steps.some(s=>s.state==='not_attempted'));assert.equal(dashboard().jobs.some(j=>j.action==='close'),false);
@@ -55,10 +56,10 @@ try{
  checks.push('One review closed both selected unchanged windows with disappearance verification, retained unsupported context, and recorded real resource observations');
  const point=dashboard().checkpoints[0];const card=page.locator('.checkpoint').first();
  for(const entry of point.body.entries.filter(e=>e.kind==='chrome'))await card.getByRole('checkbox',{name:entry.label,exact:true}).check();
- await card.getByRole('button',{name:'Restore selected context',exact:true}).click();const restored=await until(()=>dashboard().checkpoints[0]?.runs.find(r=>r.state==='finished'),'restore');
+ await card.getByRole('button', { name: /^Restore \d+ parts?$/,exact:true}).click();const restored=await until(()=>dashboard().checkpoints[0]?.runs.find(r=>r.state==='finished'),'restore');
  const verification=[];for(const step of restored.body.steps.filter(s=>s.kind==='chrome')){assert.equal(step.state,'observed');assert.equal(step.result.snapshotState,'verified');assert.equal(step.result.adapterResult.verified,true);verification.push({label:step.label,facts:step.result.adapterResult.facts});}
  checks.push('The hibernated windows reconstructed from their original checkpoint and verified saved tab organization');
- await page.reload();await page.locator('.project-close-result').first().getByText('Hibernate observations · closed-selected',{exact:true}).waitFor();assert.equal(dashboard().checkpoints[0].hibernations[0].id,completed.id);assert.equal(await page.getByRole('alert').count(),0);assert.deepEqual(errors,[]);
+ await page.reload();await page.locator('.checkpoint').first().getByText('Selected windows closed',{exact:true}).waitFor();assert.equal(dashboard().checkpoints[0].hibernations[0].id,completed.id);assert.equal(await page.getByRole('alert').count(),0);assert.deepEqual(errors,[]);
  await page.locator('.checkpoint').first().screenshot({path:join(root,'checkpoint.png')});
  const result={desktop:exe,host,checks,verification,memory:{before:completed.body.before,after:completed.body.after},limitations:['Owned local Chrome windows only; arbitrary web form state is not captured','Ambiguous or unobserved VS Code closes stop subsequent project closes','System memory observations are not exclusive project RAM; retained services/terminal contexts remain outside automatic close','Desktop reload is not a Windows reboot']};await writeFile(join(root,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 }catch(e){if(page){console.error(await page.getByRole('alert').allTextContents().catch(()=>[]));await page.screenshot({path:join(root,'failure.png'),fullPage:true}).catch(()=>{});}throw e;}finally{if(webview)await webview.close();if(desktop&&desktop.exitCode===null)desktop.kill();if(chrome)await chrome.close();await new Promise(r=>server.close(r));}

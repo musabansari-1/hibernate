@@ -30,7 +30,7 @@ export type WindowInfo = {
 };
 export type Report = {
     client: string;
-    adapter: 'chrome' | 'vscode';
+    adapter: 'chrome' | 'vscode' | 'windows-generic';
     at: number;
     body: {
         label: string;
@@ -42,6 +42,8 @@ export type Report = {
             compatibility: string;
             membershipKey?:string;
             focused?:boolean;
+            capturable?:boolean;
+            nativeGroup?:string | null;
         }[];
     };
 };
@@ -64,6 +66,8 @@ export type Job = {
     snapshot?: Snapshot;
 };
 export type Dashboard = {
+    apps?: {at:number;error:string|null;items:NativeApp[]};
+    adapterCatalog?: {id:string;label:string;reviewedClose:boolean;semanticRestore:boolean;verification:string}[];
     checkpoints: ProjectCheckpoint[];
     chromeLaunches:{client:string;profileDirectory:string;executable:string;userDataDir?:string|null;extensionId:string;configuredAt:number}[];
     services:{id:string;name:string;url:string;launch?:{executable:string;arguments:string[];cwd:string};launchRun?:{state:string;detail?:string;verified?:boolean}}[];
@@ -94,7 +98,9 @@ export type Dashboard = {
         projectPath: string;
     };
 };
-export type CheckpointEntry={id:string;snapshotId?:string;kind:string;index?:number;label:string};
+export type ReconstructionAssessment = {version:1;disposition:'restore-only'|'keep-open';summary:string;discovered:boolean;processIdentityProven:boolean;identityProven:boolean;relaunchRecipeAvailable:boolean;windowPlacementRestorable:boolean;windowPlacementRequestAvailable:boolean;documentContextRestorable:boolean;unsavedStateRestorable:boolean;safeCloseAllowed:boolean;restoreVerifiable:boolean;verificationScope:string;semanticAdapterRequired:boolean;blockers:string[]};
+export type NativeApp = {id:string;label:string;group:string|null;enhancement:string|null;window:{title:string;handle:string;class:string;owner:{pid:number;processStarted:string;executable:string}|null;sameOwnerWindows:number;appUserModelId:string|null};capabilities:{contextCapture:boolean;reviewedClose:false;semanticRestore:false;limitation:string;reconstruction?:ReconstructionAssessment}};
+export type CheckpointEntry={id:string;snapshotId?:string;kind:string;index?:number;label:string;detail?:string;executable?:string};
 export type ProjectDiscovery={checkedAt:number;detail:string;explorerError?:string|null;candidates:{name:string;projectPath:string;existingProjectId:string|null;repository:{branch?:string|null;repository?:string|null};evidence:{source:string;label:string;path:string}[]}[]};
 export type HibernationRun={id:string;created:number;state:string;body:{project:{name:string;projectPath:string};phase:string;expiresAt:number;detail:string;before?:Memory;after?:Memory|null;steps:(CheckpointEntry&{eligible:boolean;state:string;detail?:string;snapshot?:Snapshot;preflight?:unknown;result?:unknown})[]}};
 export type ProjectCheckpoint={id:string;created:number;state:string;hibernations:HibernationRun[];body:{error?:string;importWarnings?:string[];project?:{name:string;projectPath:string};repository?:unknown;services?:{id:string;name:string;url:string;launch?:{executable:string;arguments:string[];cwd:string};launchRun?:unknown;importWarning?:string}[];entries:CheckpointEntry[];captures:{state:string;detail?:string;snapshotId?:string}[]};runs:{id:string;created:number;state:string;body:{readiness?:{status:string;verified:boolean;detail:string;facts:{capability:string;kind:string;status:string}[]};steps:(CheckpointEntry&{state:string;detail?:string;result?:unknown;checkedAt?:number})[]}}[]};

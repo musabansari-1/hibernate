@@ -12,7 +12,7 @@ async function until(fn,label){for(let i=0;i<100;i++){const v=await fn();if(v)re
 const finish=id=>until(()=>{const job=dashboard().jobs.find(j=>j.id===id);return job&&['done','failed'].includes(job.state)?job:null;},id);
 const server=createServer((req,res)=>res.end(`<title>Reviewed project ${req.url}</title><input id="work">${req.url==='/dirty'?'<script>onbeforeunload=e=>{e.preventDefault();e.returnValue=""}</script>':''}`));await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 const candidates=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(p=>/^chromium-\d+$/.test(p)).sort().reverse();
-const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',candidates[0],'chrome-win64','chrome.exe');const extension=resolve('extensions/chrome/dist');
+const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',candidates[0],'chrome-win64','chrome.exe');const extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));
 const context=await chromium.launchPersistentContext(join(run,'profile'),{executablePath,env,headless:true,channel:'chromium',args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});const checks=[];
 try{
  const sw=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');const report=await until(()=>dashboard().reports.find(r=>r.adapter==='chrome'),'bridge');

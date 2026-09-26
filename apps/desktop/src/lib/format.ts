@@ -89,6 +89,7 @@ export function appLabel(adapter: string) {
   switch (adapter) {
     case 'chrome': return 'Chrome';
     case 'vscode': return 'VS Code';
+    case 'windows-generic': return 'Windows app context';
     case 'context': return 'Folders and terminals';
     default: return adapter;
   }

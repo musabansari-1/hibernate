@@ -1,0 +1,112 @@
+// Actual packaged Tauri/Win32 validation. Mutations are limited to copied fixture executables.
+import {chromium} from '@playwright/test';
+import {spawn} from 'node:child_process';
+import {mkdir,copyFile,readFile,writeFile,rm} from 'node:fs/promises';
+import {join,resolve} from 'node:path';
+import {createServer} from 'node:net';
+import {DatabaseSync} from 'node:sqlite';
+import assert from 'node:assert/strict';
+
+const packageDir=process.env.HIBERNATE_TEST_PACKAGE;
+if(!packageDir)throw new Error('Set HIBERNATE_TEST_PACKAGE to the newly built portable package.');
+const run=resolve('.validation/generic-apps/run-'+Date.now());await mkdir(run,{recursive:true});
+const fixture=join(run,'UnmanagedFixture.exe'),sibling=join(run,'UnrelatedFixture.exe'),geometry=join(run,'GeometryFixture.exe');
+for(const target of [fixture,sibling,geometry])await copyFile(resolve('native/target/debug/examples/desktop_fixture.exe'),target);
+await writeFile(geometry.replace(/\.exe$/,'.scenario.json'),JSON.stringify({single:true}));
+const marker=(exe,ext)=>exe.replace(/\.exe$/,'.'+ext);
+const port=await new Promise(r=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
+const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data'),HIBERNATE_TEST_DISCOVERY_EXECUTABLES:JSON.stringify([fixture,sibling,geometry]),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port}`};
+const source=spawn(fixture,[],{windowsHide:true,stdio:'ignore'}),other=spawn(sibling,[],{windowsHide:true,stdio:'ignore'});
+const geometricSource=spawn(geometry,[],{windowsHide:true,stdio:'ignore'});
+let desktop,browser,page,duplicate;
+const checks=[];
+async function until(fn,label,timeout=30000){const end=Date.now()+timeout;let last;while(Date.now()<end){try{last=await fn();if(last)return last;}catch(e){last=e;}await new Promise(r=>setTimeout(r,200));}throw new Error(`${label}: ${last instanceof Error?last.message:'timed out'}`);}
+const ipc=(command,args={})=>page.evaluate(([cmd,args])=>window.__TAURI_INTERNALS__.invoke(cmd,args),[command,args]);
+const data=()=>ipc('dashboard');
+const count=async exe=>(await readFile(marker(exe,'launches'),'utf8')).trim().split('\n').length;
+async function startDesktop(){desktop=spawn(join(packageDir,'ContextSleep.exe'),[],{env,windowsHide:true,stdio:'ignore'});browser=await until(async()=>{try{return await chromium.connectOverCDP(`http://127.0.0.1:${port}`);}catch{return null;}},'packaged desktop');page=browser.contexts()[0].pages()[0];await page.locator('#apps-title').waitFor();}
+async function stopDesktop(){await browser?.close();browser=null;const process=desktop;if(process&&process.exitCode===null){process.kill();await until(()=>process.exitCode!==null||process.signalCode!==null,'fixture desktop stopped');}desktop=null;}
+try{
+ await startDesktop();
+ duplicate=spawn(join(packageDir,'ContextSleep.exe'),[],{env:{...env,HIBERNATE_DATA_DIR:join(run,'data')+'\\.'},windowsHide:true,stdio:'ignore'});
+ await until(()=>duplicate.exitCode!==null||duplicate.signalCode!==null,'database alias duplicate exits');
+ assert.equal(duplicate.exitCode,0);assert.equal(desktop.exitCode,null);
+ checks.push('A second desktop using an alias of the same isolated database exited without taking journal ownership');
+ const initial=await until(async()=>{const d=await data();return d.apps.items.filter(i=>i.window.owner?.executable.toLowerCase()===fixture.toLowerCase()).length===2?d:null;},'automatic fixture discovery');
+ const apps=initial.apps.items.filter(i=>i.window.owner?.executable.toLowerCase()===fixture.toLowerCase());
+ assert.equal(new Set(apps.map(a=>a.group)).size,1);
+ for(const app of apps){assert.ok(app.window.sameOwnerWindows>=3);assert.equal(app.capabilities.reviewedClose,false);assert.equal(app.capabilities.semanticRestore,false);assert.equal(app.capabilities.contextCapture,true);}
+ checks.push('Two visible windows and hidden shared-process ownership discovered without registration; no close or semantic authority granted');
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByLabel('Workspace name').fill('Generic packaged fixture');
+ await page.getByLabel('Project folder (manual association)').fill(run);
+ await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('button',{name:'Workspace',exact:true}).click();
+ const alpha=apps.find(a=>a.window.title.endsWith('Alpha'));
+ // Only this test-created app is selected. Duplicate fixture titles in the unrelated process are scoped by executable.
+ const group=page.locator('.app-card').filter({hasText:'Open Windows apps'});
+ const row=group.locator('.window-row').filter({hasText:'UnmanagedFixture.exe'}).filter({hasText:'fixture Alpha'});
+ await row.getByRole('checkbox').check();
+ await page.getByRole('button',{name:'Save this workspace',exact:true}).last().click();
+ const point=await until(async()=>{const d=await data();return d.checkpoints.find(c=>c.state==='captured');},'saved generic checkpoint');
+ assert.equal(point.body.entries.length,1);assert.equal(point.body.entries[0].kind,'windows-generic');
+ const sid=point.body.entries[0].snapshotId;
+ const snapshot=(await data()).snapshots.find(s=>s.id===sid);
+ assert.equal(snapshot.body.window.handle,alpha.window.handle);assert.equal(snapshot.body.window.owner.pid,source.pid);
+ assert.ok(snapshot.body.launch,JSON.stringify(snapshot.body));
+ assert.equal(snapshot.body.reconstruction.safeCloseAllowed,false);assert.equal(snapshot.body.reconstruction.identityProven,false);
+ assert.equal(snapshot.body.reconstruction.disposition,'restore-only');assert.ok(snapshot.body.launch.fileIdentity);
+ const db=new DatabaseSync(join(run,'data','hibernate.db'));
+ const protectedBody=db.prepare('SELECT body FROM snapshots WHERE id=?').get(sid).body;
+ assert.ok(protectedBody.startsWith('dpapi:v1:'));assert.ok(!protectedBody.includes(fixture));db.close();
+ const card=page.locator('.checkpoint').first();await card.getByRole('button',{name:'Check sleep readiness',exact:true}).click();
+ await page.getByRole('dialog').getByText('Nothing is safe to close right now',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Keep working',exact:true}).click();
+ const review=await ipc('review_checkpoint_close',{id:point.id});assert.equal(review.body.steps[0].eligible,false);
+ await assert.rejects(ipc('close_checkpoint',{reviewId:review.id,selected:[sid],acknowledged:true}));
+ assert.equal(source.exitCode,null);assert.equal(other.exitCode,null);
+ assert.equal(await readFile(marker(fixture,'close-requested'),'utf8').catch(()=>null),null);
+ checks.push('Save committed encrypted metadata; both UI review and forged selection refused generic close; unrelated fixture survived');
+ await ipc('restore_checkpoint',{id:point.id,selected:[sid],acknowledgedServices:false});
+ let current=(await data()).checkpoints.find(c=>c.id===point.id);
+ assert.equal(current.runs[0].body.steps[0].result.status,'app-present-state-unverified');assert.equal(current.runs[0].body.readiness.verified,false);assert.equal(await count(fixture),1);
+ const backup=await ipc('export_checkpoint',{id:point.id});const imported=await ipc('import_checkpoint',{path:backup});
+ const importedPoint=(await data()).checkpoints.find(c=>c.id===imported);
+ await writeFile(marker(fixture,'stop'),'stop');await until(()=>source.exitCode!==null,'fixture cooperative exit');
+ await rm(marker(fixture,'stop'));
+ await ipc('restore_checkpoint',{id:imported,selected:[importedPoint.body.entries[0].id],acknowledgedServices:false});
+ current=(await data()).checkpoints.find(c=>c.id===imported);
+ assert.equal(current.runs[0].body.steps[0].state,'failed');assert.match(current.runs[0].body.steps[0].detail,/no matching local capture authority/);assert.equal(await count(fixture),1);
+ checks.push('Existing app observation did not duplicate the process or verify state; encrypted import did not inherit launch authority');
+ await stopDesktop();await startDesktop();assert.equal(await count(fixture),1);
+ await ipc('restore_checkpoint',{id:point.id,selected:[sid],acknowledgedServices:false});
+ current=(await data()).checkpoints.find(c=>c.id===point.id);
+ assert.equal(current.runs[0].body.steps[0].result.status,'launched-app-observed-state-unverified',JSON.stringify(current.runs[0]));
+ assert.equal(current.runs[0].body.readiness.verified,false);assert.equal(await count(fixture),2);assert.equal(other.exitCode,null);
+ checks.push('Packaged restart replayed nothing; explicit restore relaunched the captured unchanged executable with no arguments and observed its new process/window only');
+ await page.getByRole('button',{name:'Workspace',exact:true}).click();
+ await page.locator('.checkpoint').filter({hasText:'launched-app-observed-state-unverified'}).screenshot({path:join(run,'generic-checkpoint.png')});
+ await writeFile(marker(fixture,'stop'),'stop');
+ await until(async()=>(await data()).apps.items.every(a=>a.window.owner?.executable.toLowerCase()!==fixture.toLowerCase()),'restored fixture exit');
+ await rm(marker(fixture,'stop'));
+ await ipc('restore_checkpoint',{id:point.id,selected:[sid],acknowledgedServices:false});
+ current=(await data()).checkpoints.find(c=>c.id===point.id);assert.equal(current.runs[0].body.steps[0].state,'failed');assert.match(current.runs[0].body.steps[0].detail,/already attempted/);assert.equal(await count(fixture),2);
+ checks.push('Repeated restore after an attempted launch was blocked; no uncertain launch replay or false workspace readiness');
+ const geometryData=await data();const geometric=geometryData.apps.items.find(a=>a.window.owner?.executable.toLowerCase()===geometry.toLowerCase());assert.ok(geometric);
+ const geometryPoint=await ipc('capture_checkpoint',{projectId:geometryData.workspace.id,targets:[['windows-discovery',geometric.id]],includeContext:false});
+ const geometryCheckpoint=(await data()).checkpoints.find(c=>c.id===geometryPoint);const geometrySid=geometryCheckpoint.body.entries[0].snapshotId;
+ const geometrySnapshot=(await data()).snapshots.find(s=>s.id===geometrySid);assert.equal(geometrySnapshot.body.reconstruction.windowPlacementRequestAvailable,true);
+ await writeFile(marker(geometry,'stop'),'stop');await until(()=>geometricSource.exitCode!==null,'geometry source exited');await rm(marker(geometry,'stop'));
+ await writeFile(marker(geometry,'scenario.json'),JSON.stringify({single:true,startupGeometry:true}));
+ await ipc('restore_checkpoint',{id:geometryPoint,selected:[geometrySid],acknowledgedServices:false});
+ const geometryRun=(await data()).checkpoints.find(c=>c.id===geometryPoint).runs[0];assert.equal(geometryRun.body.steps[0].result.placement.observedMatch,true,JSON.stringify(geometryRun));assert.equal(geometryRun.body.readiness.verified,false);
+ assert.equal(await count(geometry),2);assert.equal(await readFile(marker(geometry,'close-requested'),'utf8').catch(()=>null),null);assert.equal(other.exitCode,null);
+ checks.push('Packaged single-window restore applied startup geometry to a new process, observed the matching rectangle, and kept semantic readiness false');
+ const result={package:packageDir,run,checks,limitations:['Disposable Win32 fixture, not proof of every third-party app','Shared process Windows evidence never bound a semantic Electron workbench','No generic app was closed by ContextSleep','No Windows reboot performed']};
+ await writeFile(join(run,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
+}finally{
+ if(duplicate&&duplicate.exitCode===null)duplicate.kill();
+ for(const exe of [fixture,sibling,geometry])await writeFile(marker(exe,'stop'),'stop').catch(()=>{});
+ await stopDesktop().catch(()=>{});
+ await until(()=>other.exitCode!==null,'unrelated fixture cleanup').catch(()=>{});
+}

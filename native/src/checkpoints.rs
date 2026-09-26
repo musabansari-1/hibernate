@@ -190,7 +190,7 @@ fn import_value(c: &mut Connection, envelope: &Value) -> R<String> {
         uuid::Uuid::parse_str(old_id).map_err(|_| "Backup snapshot identity is invalid")?;
         let adapter = snapshot["adapter"]
             .as_str()
-            .filter(|a| ["chrome", "vscode", "context"].contains(a))
+            .filter(|a| crate::adapters::descriptor(a).is_some())
             .ok_or("Unsupported backup snapshot adapter")?;
         if snapshot["body"]["version"] != 1
             || snapshot["body"]["adapter"] != adapter
@@ -200,6 +200,7 @@ fn import_value(c: &mut Connection, envelope: &Value) -> R<String> {
                 "Backup snapshot schema or project identity does not match the checkpoint".into(),
             );
         }
+        crate::adapters::validate_snapshot(adapter, &snapshot["body"])?;
         let client = snapshot["client"]
             .as_str()
             .filter(|s| !s.is_empty() && s.len() < 200)
@@ -353,6 +354,14 @@ fn entries(c: &Connection, project: &str, id: &str) -> R<Vec<Value>> {
             items.push(json!({"id":format!("{id}:terminal:0"),"snapshotId":id,"kind":"terminal","index":0,"label":format!("New terminal - {}",b["terminal"]["cwd"].as_str().unwrap_or(""))}));
         }
         Ok(items)
+    } else if s["adapter"] == crate::adapters::GENERIC {
+        crate::app_context::validate(b)?;
+        Ok(vec![
+            json!({"id":id,"snapshotId":id,"kind":crate::adapters::GENERIC,
+            "label":format!("App context - {}",b["window"]["title"].as_str().unwrap_or("Windows app")),
+            "detail":crate::app_context::assessment(b)?["summary"],"executable":b["window"]["owner"]["executable"],
+            "semanticRestore":false,"reviewedClose":false}),
+        ])
     } else {
         Ok(vec![
             json!({"id":id,"snapshotId":id,"kind":s["adapter"],"label":if s["adapter"]=="chrome"{format!("Chrome - {} tabs",b["tabs"].as_array().map_or(0,Vec::len))}else{"VS Code workspace and editors".into()}}),
@@ -395,14 +404,18 @@ pub fn capture(project: &str, targets: Vec<(String, String)>, include_context: b
         let outcome = (|| -> R<Vec<Value>> {
             let sid = if i < targets.len() {
                 let (client, target) = &targets[i];
-                let job_id =
-                    crate::store::capture_for_project(client.clone(), target.clone(), project)?;
-                body["captures"][i]["jobId"] = json!(job_id);
-                write_checkpoint(&c, &id, "capturing", &body)?;
-                await_job(&job_id)?["snapshotId"]
-                    .as_str()
-                    .ok_or("Adapter did not save a snapshot")?
-                    .to_string()
+                if client == crate::adapters::NATIVE_CLIENT {
+                    crate::app_context::capture(project, target)?
+                } else {
+                    let job_id =
+                        crate::store::capture_for_project(client.clone(), target.clone(), project)?;
+                    body["captures"][i]["jobId"] = json!(job_id);
+                    write_checkpoint(&c, &id, "capturing", &body)?;
+                    await_job(&job_id)?["snapshotId"]
+                        .as_str()
+                        .ok_or("Adapter did not save a snapshot")?
+                        .to_string()
+                }
             } else {
                 crate::context::capture_context_for(project)?
             };
@@ -448,6 +461,9 @@ fn connected(client: &str) -> bool {
 fn restore_entry(entry: &Value, mut record_job: impl FnMut(&str) -> R<()>) -> R<Value> {
     let sid = entry["snapshotId"].as_str().ok_or("Snapshot missing")?;
     let kind = entry["kind"].as_str().ok_or("Adapter missing")?;
+    if kind == crate::adapters::GENERIC {
+        return crate::app_context::restore(sid);
+    }
     if ["explorer", "terminal"].contains(&kind) {
         return crate::context::restore_context_item(
             sid,
@@ -676,6 +692,14 @@ mod tests {
         );
         assert_eq!(ready["status"], "ready");
         assert_eq!(ready["verified"], true);
+        let generic = readiness(
+            &checkpoint,
+            &json!({"steps":[{"kind":"windows-generic","label":"App","state":"observed","result":{"verified":true,"status":"launched-app-observed-state-unverified"}}]}),
+        );
+        assert_eq!(
+            generic["verified"], false,
+            "Even a forged launch success is not semantic readiness"
+        );
 
         let skipped = readiness(
             &checkpoint,

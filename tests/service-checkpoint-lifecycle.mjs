@@ -29,6 +29,7 @@ const desktopExe = process.env.HIBERNATE_TEST_DESKTOP ?? resolve('apps/desktop/s
 const host = process.env.HIBERNATE_TEST_HOST ?? resolve('native/target/debug/hibernate-host.exe');
 const env = {
   ...process.env,
+ HIBERNATE_TEST_DISCOVERY_EXECUTABLES:'[]',
   HIBERNATE_DATA_DIR: join(run, 'data'),
   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${desktopPort}`,
 };
@@ -56,7 +57,7 @@ async function launchDesktop() {
     catch { return null; }
   }, 'desktop');
   page = webview.contexts()[0].pages()[0];
-  await page.getByRole('heading', { name: 'Your projects', exact: true }).waitFor();
+  await page.locator('#apps-title').waitFor();
 }
 async function stopDesktop() {
   if (webview) await webview.close().catch(() => {});
@@ -72,25 +73,25 @@ async function stopDesktop() {
 const checks = [];
 try {
   await launchDesktop();
-  await page.getByLabel('Workspace name').fill('Service lifecycle fixture');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Workspace name').fill('Service lifecycle fixture');
   await page.getByLabel('Project folder (manual association)').fill(project);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();await page.getByRole('button',{name:'Workspace',exact:true}).click();
 
-  await page.getByLabel('Service name', { exact: true }).fill('Lifecycle service');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Service name', { exact: true }).fill('Lifecycle service');
   await page.getByLabel('Health endpoint', { exact: true }).fill(health);
   await page.getByRole('button', { name: 'Add service', exact: true }).click();
   const service = await until(async () => (await dashboard()).services.find(s => s.name === 'Lifecycle service'), 'saved service');
 
-  await page.getByText('Approved service startup', { exact: true }).click();
+  await page.getByText('Startup command', { exact: true }).click();
   await page.getByLabel('Runtime executable').fill(process.execPath);
-  await page.getByLabel('Literal arguments (JSON array)').fill(JSON.stringify([serviceScript, String(servicePort)]));
+  await page.getByLabel('Literal arguments JSON array').fill(JSON.stringify([serviceScript, String(servicePort)]));
   await page.getByLabel('Working directory').fill(project);
-  await page.getByRole('button', { name: 'Save startup definition', exact: true }).click();
+  await page.getByRole('button', { name: 'Save startup command', exact: true }).click();
   await until(async () => (await dashboard()).services.find(s => s.id === service.id)?.launch, 'saved launch definition');
 
-  await page.getByText('Approved service startup', { exact: true }).click();
+  if (!await page.getByLabel('I reviewed this saved command and approve running it now.').isVisible()) await page.getByText('Startup command', { exact: true }).click();
   await page.getByLabel('I reviewed this saved command and approve running it now.').check();
-  await page.getByRole('button', { name: 'Start approved service and verify', exact: true }).click();
+  await page.getByRole('button', { name: 'Start and verify', exact: true }).click();
   const running = await until(async () => {
     const value = (await dashboard()).services.find(s => s.id === service.id);
     return value?.launchRun?.state === 'verified' && value.launchRun.verified === true ? value : null;
@@ -99,8 +100,8 @@ try {
   const firstIdentity = running.launchRun.identity;
   checks.push('Packaged desktop launched the explicitly approved Node runtime and verified unique listener ownership');
 
-  await page.getByLabel('Include project Explorer folders and a new terminal definition').check();
-  await page.getByRole('button', { name: 'Capture & review workspace sleep', exact: true }).click();
+  await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByLabel('Include folders and terminals').check();
+  await page.getByRole('button', { name: 'Save this workspace', exact: true }).last().click();
   const checkpoint = await until(async () => {
     const value = (await dashboard()).checkpoints[0];
     return value?.state === 'captured' ? value : null;
@@ -109,11 +110,11 @@ try {
   assert.equal(checkpoint.body.services[0].launchRun.identity.pid, firstIdentity.pid);
 
   const card = page.locator('.checkpoint').first();
-  await card.getByRole('button', { name: 'Review workspace sleep', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Review workspace sleep' });
-  await dialog.getByRole('button', { name: 'Select supported windows', exact: true }).click();
-  await dialog.getByRole('checkbox', { name: 'I have saved the work in every selected window and reviewed what can be reconstructed.', exact: true }).check();
-  await dialog.getByRole('button', { name: 'Sleep selected windows', exact: true }).click();
+  await card.getByRole('button', { name: 'Check sleep readiness', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'What can sleep right now?' });
+  await dialog.getByRole('button', { name: 'Select all safe', exact: true }).click();
+  await dialog.getByRole('checkbox', { name: 'I saved the work in every selected window and reviewed what can be reconstructed.', exact: true }).check();
+  await dialog.getByRole('button', { name: /^Sleep \d+ windows?$/, exact: true }).click();
   const hibernation = await until(async () => {
     const value = (await dashboard()).checkpoints[0]?.hibernations[0];
     return value?.state === 'closed-selected' ? value : null;
@@ -138,9 +139,10 @@ try {
   checks.push('Desktop-process restart preserved the stopped service state and did not replay a launch automatically');
 
   const restoredCard = page.locator('.checkpoint').first();
-  await restoredCard.getByRole('checkbox', { name: /Restart checkpoint services:/ }).check();
-  await restoredCard.getByLabel('I reviewed these saved commands and approve restarting them from this checkpoint.').check();
-  await restoredCard.getByRole('button', { name: 'Restore selected context', exact: true }).click();
+  for (const entry of checkpoint.body.entries) await restoredCard.getByRole('checkbox', { name: entry.label, exact: true }).uncheck();
+  await restoredCard.getByRole('checkbox', { name: /Restart saved services:/ }).check();
+  await restoredCard.getByLabel('I reviewed these saved commands and approve restarting them.').check();
+  await restoredCard.getByRole('button', { name: /^Restore \d+ parts?$/, exact: true }).click();
   const restored = await until(async () => (await dashboard()).checkpoints[0]?.runs.find(r => r.state === 'finished'), 'checkpoint service restart', 120000);
   const serviceStep = restored.body.steps.find(s => s.kind === 'services');
   assert.equal(serviceStep.state, 'observed', JSON.stringify(serviceStep));

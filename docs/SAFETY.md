@@ -9,7 +9,7 @@ No adapter in this preview meets **full process hibernation** for general user w
 | VS Code | Context Restore, incomplete | Reviewed clean local text contexts only; native verification requires one workbench window and GUI-process exit | Dirty work, terminals, tasks, debugging and custom editors block close. Exact layout, commands and unsaved-buffer recovery are not reconstructed. |
 | Explorer | Folder context | Blocked | Shell-exposed folders only; Windows 11 tab coverage, selection and file operations are unknown. |
 | Windows Terminal | Experimental instrumented context | Blocked | Exact cwd handshake available for newly launched no-profile shells. Existing shells, panes and running commands are not reconstructed. |
-| Other apps | Unsupported | Never | No arbitrary launch, close, suspend or terminate interface. |
+| Other visible Windows apps | Generic app/window context | Never | OS metadata only. Eligible locally captured GUI executables can be reopened without arguments; documents and working state remain unverified. Inaccessible identities, elevated apps, system components, app-specific launch metadata and brokers remain context/discovery only. |
 
 ## Close policy
 
@@ -23,7 +23,9 @@ Explorer and Windows Terminal are not closed. A folder is not proof that an Expl
 
 ## Native authority
 
-Windows discovery opens processes with query-only access. Only named developer applications are displayed. There is no process-suspend, working-set-trim, terminate, arbitrary `WM_CLOSE`, credential access or elevation feature. System/security processes cannot be selected for manipulation through the exposed API.
+Windows discovery uses read-only process/token/OS metadata queries. The size-only Application Restart query additionally requires PROCESS_VM_READ for non-elevated owners; it collects no argument string and performs no direct process-memory reads. Visible named top-level windows are discovered independently of the specialized adapters. HWND, PID/creation identity, executable, class, placement, package identity, restart registration, AppUserModelID and same-owner window counts are observations, never saved-work or close authority. Hidden windows contribute to sharing evidence. There is no process-suspend, working-set-trim, terminate, arbitrary `WM_CLOSE`, credential access or elevation feature.
+
+Generic restore accepts only a saved native snapshot, never a free-form executable or command. Relaunch requires an original local capture record, a fixed local GUI executable, unchanged SHA-256/size/volume-and-file identity while the file is held against write/delete sharing, original-process exit and no observed running matching application. System paths, known semantic adapters, shells/runtimes, elevation, packaged/unknown package identity and present/unknown restart or taskbar metadata are excluded. Intent is durable and single-attempt per captured process instance. Imports carry no native origin or launch-attempt authority. No arguments, documents, taskbar commands or restart strings are replayed. Application presence cannot satisfy semantic workspace readiness. Creation-time geometry hints may apply to a newly launched sole normal window; no discovered HWND is moved, and observed geometry cannot verify working state. Legacy generic captures need fresh capture for relaunch. Concurrent external launches and singleton routing cannot be made atomic by a generic observer.
 
 The browser bridge is an explicit native messaging allowlist, not a localhost listener. The VS Code executable-path setting is machine scoped, unavailable to workspace configuration, and remote/untrusted workspaces are excluded. Native folder launches reject non-local, missing and ambiguous inputs. Reopening a VS Code project follows VS Code's existing trust and native restore behavior; the product does not replay tasks.
 

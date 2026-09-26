@@ -20,6 +20,9 @@ for(const [source,target] of [
  ['scripts/setup-package.ps1','SETUP.ps1'],
  ['docs/SAFETY.md','SAFETY.md'],
  ['docs/ARCHITECTURE.md','ARCHITECTURE.md'],
+ ['docs/GENERIC-APP-ARCHITECTURE.md','GENERIC-APP-ARCHITECTURE.md'],
+ ['docs/RECONSTRUCTION-PLAN.md','RECONSTRUCTION-PLAN.md'],
+ ['docs/GENERIC-APP-VALIDATION.md','GENERIC-APP-VALIDATION.md'],
  ['docs/PRODUCT-STATUS.md','PRODUCT-STATUS.md'],
  ['docs/VALIDATION.md','VALIDATION.md'],
  ['docs/TERMINAL-OWNERSHIP.md','TERMINAL-OWNERSHIP.md'],
@@ -68,9 +71,11 @@ ContextSleep: Open Instrumented Project Terminal creates a no-profile PowerShell
 
 ## First project
 
-Create a workspace, choose its folder, assign its app windows, then **Capture workspace context**. Choose **Review and sleep**, inspect the saved state, select supported windows/services and confirm saved work. All selected parts are checked before the first close and rechecked before each close. A failed or unverified close stops later work. Unsupported contexts remain visible and may continue using resources. Before relying on cold restore for Chrome, open **Chrome profile binding** once and save that enrolled profile's directory (for example \`Default\`). With the VS Code extension installed and its native-host path configured, checkpoint restore can reopen the saved local workspace and wait for the same integration identity to reconnect. Restarting saved development services requires selecting the checkpoint service part and explicitly approving its saved direct Node/Python command.
+Create a workspace, choose its folder, assign its app windows, then **Save this workspace**. Choose **Check sleep readiness**, inspect the saved state, select supported windows/services and confirm saved work. All selected parts are checked before the first close and rechecked before each close. A failed or unverified close stops later work. Unsupported contexts remain visible and may continue using resources. Before relying on cold restore for Chrome, open **Chrome profile binding** once and save that enrolled profile's directory (for example \`Default\`). With the VS Code extension installed and its native-host path configured, checkpoint restore can reopen the saved local workspace and wait for the same integration identity to reconnect. Restarting saved development services requires selecting the checkpoint service part and explicitly approving its saved direct Node/Python command.
 
-Upgrade the desktop, native host and integrations together. This build upgrades the database to schema 5 for durable native close observation. Older builds cannot open the upgraded database. Interrupted project operations are never replayed automatically; queued project closes are canceled at startup.
+Open Windows applications are discovered without per-app connection setup. Generic context preserves window/executable metadata and may relaunch an eligible captured GUI executable with no arguments. Generic contexts stay open during Sleep, do not reconstruct documents or unsaved state, and cannot make workspace readiness verified. App-specific launch metadata, protected/system apps and ambiguous routes remain context-only. Chrome/VS Code semantic support retains its existing approval and safety boundaries.
+
+Upgrade the desktop, native host and integrations together. This build upgrades the database to schema 6 for local generic capture authority and launch-attempt journals. Older builds cannot open the upgraded database. Interrupted project operations are never replayed automatically; queued project closes are canceled at startup. Generic imports do not acquire launch authority.
 
 Data is stored in %LOCALAPPDATA%\\ProjectHibernate. Semantic payloads and .hibernate backups use current-account DPAPI. IDs and resource metrics are not encrypted; this does not protect against programs running as your account. Keep the original account and integration identities when relying on saved contexts.
 

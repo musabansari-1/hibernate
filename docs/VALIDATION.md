@@ -1,5 +1,9 @@
 # Technical validation — updated 14 September 2026
 
+## Automatic Windows app adapters ? 22 September 2026
+
+The generic adapter now discovers ordinary visible desktop windows automatically, captures protected window/process metadata, and supports conservative application-presence observation or a validated one-shot executable relaunch. Unknown apps remain open during Sleep and never claim semantic restoration or Verified workspace readiness. Chrome/VS Code retain their existing specialized contracts. See [the architecture](GENERIC-APP-ARCHITECTURE.md) and [current validation evidence and boundaries](GENERIC-APP-VALIDATION.md). Older dated results below are historical.
+
 ## Terminal ownership review — 15 September
 
 **55 Rust unit tests, 1 real service integration test, native Clippy, native host build, 23 TypeScript tests and frontend/extensions production build passed.** The terminal-specific production change rejects stale/mismatched launch-session evidence and oversized PIDs before declaring cwd restoration verified.

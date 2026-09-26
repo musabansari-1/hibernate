@@ -13,7 +13,7 @@ const host=resolve('native/target/debug/hibernate-host.exe'),desktopExe=process.
 const desktopPort=await new Promise(r=>{const s=netServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
 const chromePort=await new Promise(r=>{const s=netServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
 const server=createServer((_,res)=>res.end('<title>Cold start fixture</title><p>fixture</p>'));await new Promise(r=>server.listen(0,'127.0.0.1',r));const fixtureUrl=`http://127.0.0.1:${server.address().port}/`;
-const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data'),HIBERNATE_TEST_CHROME_EXTENSION:extension,HIBERNATE_TEST_CHROME_DEBUG_PORT:String(chromePort),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${desktopPort}`};
+const env={...process.env,HIBERNATE_TEST_DISCOVERY_EXECUTABLES:'[]',HIBERNATE_DATA_DIR:join(run,'data'),HIBERNATE_TEST_CHROME_EXTENSION:extension,HIBERNATE_TEST_CHROME_DEBUG_PORT:String(chromePort),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${desktopPort}`};
 const dashboard=async()=>JSON.parse((await promisify(execFile)(host,['--diagnose'],{env,windowsHide:true,maxBuffer:8_000_000})).stdout);
 async function until(fn,label,timeout=70000){const end=Date.now()+timeout;while(Date.now()<end){const v=await fn();if(v)return v;await new Promise(r=>setTimeout(r,300));}throw Error('Timed out: '+label);}
 let initial,desktop,webview,page,relaunched;
@@ -24,22 +24,22 @@ try{
  const report=await until(async()=>(await dashboard()).reports.find(r=>r.adapter==='chrome'&&Date.now()-r.at<5000),'initial Chrome report');
  desktop=spawn(desktopExe,[],{env,windowsHide:true,stdio:'ignore'});
  webview=await until(async()=>{try{return await chromium.connectOverCDP(`http://127.0.0.1:${desktopPort}`);}catch{return null;}},'desktop');page=webview.contexts()[0].pages()[0];
- await page.getByLabel('Workspace name').fill('Cold browser fixture');await page.getByLabel('Project folder (manual association)').fill(project);await page.getByRole('button',{name:'Save',exact:true}).click();
- await page.getByText('Cold-start profile binding',{exact:true}).click();
- await page.getByLabel('Chrome profile directory').fill('Default');await page.getByLabel('chrome.exe path (optional if Chrome Stable is installed normally)').fill(chromeExe);await page.getByLabel('User-data root (optional; only for portable/custom Chrome data)').fill(profile);await page.getByRole('button',{name:'Save profile binding',exact:true}).click();
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Workspace name').fill('Cold browser fixture');await page.getByLabel('Project folder (manual association)').fill(project);await page.getByRole('button',{name:'Save',exact:true}).click();await page.getByRole('button',{name:'Workspace',exact:true}).click();
+ await page.getByText('Chrome profile binding',{exact:true}).click();
+ await page.getByLabel('Chrome profile folder').fill('Default');await page.getByLabel('chrome.exe path optional').fill(chromeExe);await page.getByLabel('User-data root portable Chrome only').fill(profile);await page.getByRole('button',{name:'Save profile binding',exact:true}).click();
  await until(async()=>(await dashboard()).chromeLaunches?.some(v=>v.client===report.client&&v.profileDirectory==='Default'),'saved Chrome binding');
  const item=(await dashboard()).reports.find(r=>r.client===report.client).body.items.find(i=>String(i.id)===String(win.id));assert.ok(item,item);
- await page.getByLabel(`Project for ${item.title}`).selectOption((await dashboard()).workspace.id);
- await page.getByLabel(`Select ${item.title}`).check();await page.getByRole('button',{name:'Capture & review workspace sleep',exact:true}).click();
+ await page.getByLabel(`Workspace for ${item.title}`).selectOption((await dashboard()).workspace.id);
+ await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByLabel(`Select ${item.title}`).check();await page.getByRole('button',{name:'Save this workspace',exact:true}).last().click();
  const checkpoint=await until(async()=>{const c=(await dashboard()).checkpoints[0];return c?.state==='captured'?c:null;},'checkpoint capture');
- const card=page.locator('.checkpoint').first();await card.getByRole('button',{name:'Review workspace sleep',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Review workspace sleep'});await dialog.getByRole('button',{name:'Select supported windows',exact:true}).click();await dialog.getByRole('checkbox',{name:'I have saved the work in every selected window and reviewed what can be reconstructed.',exact:true}).check();await dialog.getByRole('button',{name:'Sleep selected windows',exact:true}).click();
+ const card=page.locator('.checkpoint').first();await card.getByRole('button', { name: 'Check sleep readiness',exact:true}).click();const dialog=page.getByRole('dialog',{name:'What can sleep right now?'});await dialog.getByRole('button',{name:'Select all safe',exact:true}).click();await dialog.getByRole('checkbox',{name:'I saved the work in every selected window and reviewed what can be reconstructed.',exact:true}).check();await dialog.getByRole('button', { name: /^Sleep \d+ windows?$/,exact:true}).click();
  await until(async()=>{const h=(await dashboard()).checkpoints[0]?.hibernations[0];return h?.state==='closed-selected'?h:null;},'Chrome close');
  await initial.close();initial=null;
  await until(async()=>{const r=(await dashboard()).reports.find(r=>r.client===report.client);return r?.at===0;},'Chrome disconnect marker');
- const entry=checkpoint.body.entries.find(e=>e.kind==='chrome');await card.getByRole('checkbox',{name:entry.label,exact:true}).check();await card.getByRole('button',{name:'Restore selected context',exact:true}).click();
+ const entry=checkpoint.body.entries.find(e=>e.kind==='chrome');await card.getByRole('checkbox',{name:entry.label,exact:true}).check();await card.getByRole('button', { name: /^Restore \d+ parts?$/,exact:true}).click();
  const restored=await until(async()=>(await dashboard()).checkpoints[0]?.runs.find(r=>r.state==='finished'),'cold restore');
  const step=restored.body.steps.find(s=>s.kind==='chrome');assert.equal(step.state,'observed',JSON.stringify(step));assert.equal(step.result.adapterResult.verified,true,JSON.stringify(step));assert.equal(restored.body.readiness.status,'ready',JSON.stringify(restored.body.readiness));
  relaunched=await until(async()=>{try{return await chromium.connectOverCDP(`http://127.0.0.1:${chromePort}`);}catch{return null;}},'relaunched Chrome debug connection');
  const after=await dashboard();assert.ok(after.reports.find(r=>r.client===report.client&&Date.now()-r.at<5000));
  const result={checks:['Explicit Chrome profile binding persisted','Whole Chrome profile disconnect was marked offline immediately','Restore cold-launched the bound profile without inspecting private profile data','Original extension profile identity reconnected','Saved browser context reconstructed and verified','Project readiness became ready'],client:report.client,readiness:restored.body.readiness};await writeFile(join(run,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
-}finally{if(relaunched)await relaunched.close().catch(()=>{});if(initial)await initial.close().catch(()=>{});if(webview)await webview.close().catch(()=>{});if(desktop&&desktop.exitCode===null)desktop.kill();await new Promise(r=>server.close(r));}
+}finally{if(relaunched){await (await relaunched.newBrowserCDPSession()).send('Browser.close').catch(()=>{});await relaunched.close().catch(()=>{});}if(initial)await initial.close().catch(()=>{});if(webview)await webview.close().catch(()=>{});if(desktop&&desktop.exitCode===null)desktop.kill();await new Promise(r=>server.close(r));}

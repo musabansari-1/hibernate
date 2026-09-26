@@ -37,6 +37,7 @@ const chromeExe=join(process.env.LOCALAPPDATA,'ms-playwright',versions[0],'chrom
 const vscodeReady=join(run,'vscode-ready.json');
 const env={
  ...process.env,
+ HIBERNATE_TEST_DISCOVERY_EXECUTABLES:'[]',
  HIBERNATE_DATA_DIR:join(run,'data'),
  HIBERNATE_TEST_HOST:host,
  HIBERNATE_TEST_FAILURE:join(run,'failure.txt'),
@@ -56,7 +57,7 @@ async function until(fn,label,timeout=120000){const end=Date.now()+timeout;let l
 async function endpointUp(){try{return (await fetch(health,{signal:AbortSignal.timeout(1200)})).status===200;}catch{return false;}}
 
 let chrome, relaunchedChrome, code, desktop, webview, page;
-async function launchDesktop(){desktop=spawn(desktopExe,[],{env,windowsHide:true,stdio:'ignore'});webview=await until(async()=>{try{return await chromium.connectOverCDP(`http://127.0.0.1:${desktopPort}`);}catch{return null;}},'packaged desktop');page=webview.contexts()[0].pages()[0];await page.getByRole('heading',{name:'Your projects',exact:true}).waitFor();}
+async function launchDesktop(){desktop=spawn(desktopExe,[],{env,windowsHide:true,stdio:'ignore'});webview=await until(async()=>{try{return await chromium.connectOverCDP(`http://127.0.0.1:${desktopPort}`);}catch{return null;}},'packaged desktop');page=webview.contexts()[0].pages()[0];await page.locator('#apps-title').waitFor();}
 async function stopDesktop(){if(webview)await webview.close().catch(()=>{});webview=null;page=null;if(desktop&&desktop.exitCode===null){const exited=new Promise(r=>desktop.once('exit',r));desktop.kill();await Promise.race([exited,new Promise(r=>setTimeout(r,5000))]);}desktop=null;}
 
 const checks=[];
@@ -72,53 +73,53 @@ try{
  const initialVscodeInstance=vscodeReport.body.instance;
 
  await launchDesktop();
- await page.getByLabel('Workspace name').fill('Packaged V1 fixture');
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Workspace name').fill('Packaged V1 fixture');
  await page.getByLabel('Project folder (manual association)').fill(project);
- await page.getByRole('button',{name:'Save',exact:true}).click();
+ await page.getByRole('button',{name:'Save',exact:true}).click();await page.getByRole('button',{name:'Workspace',exact:true}).click();
  const projectId=(await dashboard()).workspace.id;
 
- await page.getByText('Cold-start profile binding',{exact:true}).click();
- await page.getByLabel('Chrome profile directory').fill('Default');
- await page.getByLabel('chrome.exe path (optional if Chrome Stable is installed normally)').fill(chromeExe);
- await page.getByLabel('User-data root (optional; only for portable/custom Chrome data)').fill(chromeProfile);
+ await page.getByText('Chrome profile binding',{exact:true}).click();
+ await page.getByLabel('Chrome profile folder').fill('Default');
+ await page.getByLabel('chrome.exe path optional').fill(chromeExe);
+ await page.getByLabel('User-data root portable Chrome only').fill(chromeProfile);
  await page.getByRole('button',{name:'Save profile binding',exact:true}).click();
  await until(async()=>(await dashboard()).chromeLaunches?.some(v=>v.client===chromeReport.client&&v.profileDirectory==='Default'),'Chrome cold-start binding');
 
- await page.getByLabel('Service name',{exact:true}).fill('V1 service');
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Service name',{exact:true}).fill('V1 service');
  await page.getByLabel('Health endpoint',{exact:true}).fill(health);
  await page.getByRole('button',{name:'Add service',exact:true}).click();
  const service=await until(async()=>(await dashboard()).services.find(s=>s.name==='V1 service'),'service definition');
- await page.getByText('Approved service startup',{exact:true}).click();
+ await page.getByText('Startup command',{exact:true}).click();
  await page.getByLabel('Runtime executable').fill(process.execPath);
- await page.getByLabel('Literal arguments (JSON array)').fill(JSON.stringify([serviceScript,String(servicePort)]));
+ await page.getByLabel('Literal arguments JSON array').fill(JSON.stringify([serviceScript,String(servicePort)]));
  await page.getByLabel('Working directory').fill(project);
- await page.getByRole('button',{name:'Save startup definition',exact:true}).click();
+ await page.getByRole('button',{name:'Save startup command',exact:true}).click();
  await until(async()=>(await dashboard()).services.find(s=>s.id===service.id)?.launch,'saved service launch');
- await page.getByText('Approved service startup',{exact:true}).click();
- await page.getByLabel('I reviewed this saved command and approve running it now.').check();
- await page.getByRole('button',{name:'Start approved service and verify',exact:true}).click();
+ if (!await page.getByLabel('I reviewed this saved command and approve running it now.').isVisible()) await page.getByText('Startup command', { exact: true }).click();
+  await page.getByLabel('I reviewed this saved command and approve running it now.').check();
+ await page.getByRole('button',{name:'Start and verify',exact:true}).click();
  const initialService=await until(async()=>{const s=(await dashboard()).services.find(v=>v.id===service.id);return s?.launchRun?.verified===true?s:null;},'verified initial service');
  assert.equal(await endpointUp(),true);
 
- const current=await dashboard();
+ await page.getByRole('button',{name:'Workspace',exact:true}).click();const current=await dashboard();
  for(const report of [vscodeReport,chromeReport]){
   const fresh=current.reports.find(r=>r.client===report.client);
   const item=report.adapter==='chrome'?fresh.body.items.find(i=>i.title==='Packaged V1 browser'):fresh.body.items[0];
   assert.ok(item,`Missing selectable ${report.adapter} fixture item`);
-  const selector=page.getByLabel(`Project for ${item.title}`);if(await selector.count())await selector.selectOption(projectId);
-  await page.getByLabel(`Select ${item.title}`,{exact:true}).check();
+  const selector=page.getByLabel(`Workspace for ${item.title}`);if(await selector.count())await selector.selectOption(projectId);
+  await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByLabel(`Select ${item.title}`,{exact:true}).check();
  }
- await page.getByRole('button',{name:'Capture & review workspace sleep',exact:true}).click();
+ await page.getByRole('button',{name:'Save this workspace',exact:true}).last().click();
  const checkpoint=await until(async()=>{const c=(await dashboard()).checkpoints[0];return c?.state==='captured'?c:null;},'complete V1 checkpoint');
  assert.deepEqual(checkpoint.body.entries.map(e=>e.kind),['vscode','chrome']);
  assert.equal(checkpoint.body.services.length,1);
 
  const card=page.locator('.checkpoint').first();
- await card.getByRole('button',{name:'Review workspace sleep',exact:true}).click();
- const dialog=page.getByRole('dialog',{name:'Review workspace sleep'});
- await dialog.getByRole('button',{name:'Select supported windows',exact:true}).click();
- await dialog.getByRole('checkbox',{name:'I have saved the work in every selected window and reviewed what can be reconstructed.',exact:true}).check();
- await dialog.getByRole('button',{name:'Sleep selected windows',exact:true}).click();
+ await card.getByRole('button', { name: 'Check sleep readiness',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'What can sleep right now?'});
+ await dialog.getByRole('button',{name:'Select all safe',exact:true}).click();
+ await dialog.getByRole('checkbox',{name:'I saved the work in every selected window and reviewed what can be reconstructed.',exact:true}).check();
+ await dialog.getByRole('button', { name: /^Sleep \d+ windows?$/,exact:true}).click();
  const closed=await until(async()=>{const h=(await dashboard()).checkpoints[0]?.hibernations[0];return h?.state==='closed-selected'?h:null;},'combined hibernation',150000);
  assert.deepEqual(closed.body.steps.filter(s=>s.state==='closed').map(s=>s.kind),['vscode','chrome','services']);
  assert.equal(closed.body.steps.find(s=>s.kind==='vscode').result.adapterResult.ownerProcessExited,true);
@@ -140,9 +141,9 @@ try{
 
  const restoreCard=page.locator('.checkpoint').first();
  for(const entry of checkpoint.body.entries)await restoreCard.getByRole('checkbox',{name:entry.label,exact:true}).check();
- await restoreCard.getByRole('checkbox',{name:/Restart checkpoint services:/}).check();
- await restoreCard.getByLabel('I reviewed these saved commands and approve restarting them from this checkpoint.').check();
- await restoreCard.getByRole('button',{name:'Restore selected context',exact:true}).click();
+ await restoreCard.getByRole('checkbox',{name:/Restart saved services:/}).check();
+ await restoreCard.getByLabel('I reviewed these saved commands and approve restarting them.').check();
+ await restoreCard.getByRole('button', { name: /^Restore \d+ parts?$/,exact:true}).click();
  const restored=await until(async()=>(await dashboard()).checkpoints[0]?.runs.find(r=>r.state==='finished'),'complete packaged reconstruction',180000);
  assert.equal(restored.body.readiness.status,'ready',JSON.stringify(restored.body.readiness));
  assert.equal(restored.body.readiness.verified,true);
@@ -160,13 +161,13 @@ try{
  checks.push('After product restart, restore cold-launched the enrolled Chrome profile and saved VS Code workspace, restarted the approved service, and overall readiness became ready');
 
  await page.reload();
- await page.locator('.checkpoint').first().getByText('Project readiness').waitFor();
+ await page.locator('.checkpoint').first().getByText('Verified ready',{exact:true}).waitFor();
  assert.equal(await page.getByRole('alert').count(),0);
  checks.push('Ready evidence persisted across dashboard reload');
  const result={packageDir,checks,close:closed.body.steps.map(s=>({kind:s.kind,state:s.state})),readiness:restored.body.readiness,service:{initial:initialService.launchRun.identity,restarted:restartedService.launchRun.identity},limitations:['Actual Windows reboot not performed by this automated run','Explorer/terminal context intentionally excluded from this checkpoint because existing arbitrary shell state is not a V1 automatic-close capability']};
  await writeFile(join(root,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 } finally {
- if(relaunchedChrome)await relaunchedChrome.close().catch(()=>{});if(chrome)await chrome.close().catch(()=>{});await stopDesktop().catch(()=>{});if(code&&code.exitCode===null)code.kill();
+ if(relaunchedChrome){await (await relaunchedChrome.newBrowserCDPSession()).send('Browser.close').catch(()=>{});await relaunchedChrome.close().catch(()=>{});}if(chrome)await chrome.close().catch(()=>{});await stopDesktop().catch(()=>{});if(code&&code.exitCode===null)code.kill();
  await promisify(execFile)('powershell.exe',['-NoProfile','-Command',"$svc=$env:HIBERNATE_SERVICE_FIXTURE;$vscode=$env:HIBERNATE_VSCODE_USER; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine.Contains($svc)) -or ($_.Name -eq 'Code.exe' -and $_.CommandLine -and $_.CommandLine.Contains($vscode)) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"] ,{env:{...process.env,HIBERNATE_SERVICE_FIXTURE:serviceScript,HIBERNATE_VSCODE_USER:vscodeUser},windowsHide:true}).catch(()=>{});
  await new Promise(r=>fixtureServer.close(r));
 }

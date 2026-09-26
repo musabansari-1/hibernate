@@ -1,5 +1,9 @@
 # Product status — 18 September 2026
 
+## Automatic Windows app adapters ? 22 September 2026
+
+The generic adapter discovers ordinary visible desktop windows automatically and now reports explicit reconstruction capabilities and refusal reasons. Protected capture includes package/restart metadata and executable file continuity; eligible one-shot relaunches can request and observe limited startup geometry. **No new generic class qualifies for Sleep:** OS metadata cannot prove working-state coverage or exact conditional close authority. Unknown apps remain open and never claim document recovery or Verified workspace readiness. Packaged/brokered activation remains unsupported. Chrome/VS Code retain their specialized contracts. See [the architecture](GENERIC-APP-ARCHITECTURE.md) and [current validation evidence and boundaries](GENERIC-APP-VALIDATION.md). Older dated results below are historical.
+
 15 September terminal ownership review: automatic Windows Terminal closure is **rejected for the current integration**. Shell identity does not prove exclusive tab/window ownership or safe idleness. Context restoration now requires the exact launch session, normalized saved cwd and live PID/creation identity; the disposable multi-cwd Context Restore regression passes. See [TERMINAL-OWNERSHIP.md](TERMINAL-OWNERSHIP.md) for the ownership decision and the stronger contract required before automatic Terminal close can be reconsidered.
 
 ContextSleep is a working Windows private beta. **The entire specification is not complete.** The existing Tauri / React / Rust / SQLite / extension architecture has been retained, and unsupported or ambiguous lifecycle cases continue to fail closed rather than being presented as complete.

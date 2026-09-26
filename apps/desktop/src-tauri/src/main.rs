@@ -196,6 +196,10 @@ fn install_vscode_vsix(code:&std::path::Path,vsix:&str)->Result<(),String>{
 }
 #[tauri::command]
 fn auto_prepare_integrations()->Result<serde_json::Value,String>{
+    // Fixture databases must not trigger installation/registration in personal profiles.
+    if std::env::var_os("HIBERNATE_DATA_DIR").is_some() {
+        return Ok(serde_json::json!({"catalogVersion":2,"adapters":[],"detail":"Isolated data directory: discovery is active; personal integration enrollment is disabled."}));
+    }
     let info=prepare_integration_files()?;
     let chrome_detected=chrome_executable().is_some();
     let chrome_registration=if chrome_detected{match register_chrome_integration(CHROME_EXTENSION_ID.to_string()){Ok(_)=>serde_json::json!({"prepared":true}),Err(e)=>serde_json::json!({"prepared":false,"error":e})}}else{serde_json::json!({"prepared":false})};
@@ -274,8 +278,18 @@ fn install_vscode_integration() -> Result<serde_json::Value, String> {
 }
 fn main() {
     let Some(_lease)=hibernate_native::platform::desktop_lease().expect("Cannot establish desktop instance ownership") else {return;};
+    let mut context = tauri::generate_context!();
+    let isolated_window = if std::env::var_os("HIBERNATE_DATA_DIR").is_some() {
+        let window = context.config().app.windows.first().cloned();
+        context.config_mut().app.windows.clear();
+        window
+    } else { None };
     tauri::Builder::default()
-        .setup(|app|{
+        .setup(move |app|{
+            if let Some(config) = isolated_window {
+                let directory = store::path()?.parent().ok_or("Missing isolated data directory")?.join("webview");
+                tauri::WebviewWindowBuilder::from_config(app, &config)?.data_directory(directory).build()?;
+            }
             hibernate_native::checkpoints::recover().map_err(std::io::Error::other)?;
             let _observer = hibernate_native::native_close::start_observer().map_err(std::io::Error::other)?;
             use tauri::{menu::{Menu,MenuItem},tray::TrayIconBuilder};
@@ -331,6 +345,6 @@ fn main() {
             register_chrome_integration,
             install_vscode_integration
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("Cannot start ContextSleep");
 }

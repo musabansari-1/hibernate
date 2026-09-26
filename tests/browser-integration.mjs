@@ -8,7 +8,7 @@ const root=resolve('.validation/browser');await mkdir(root,{recursive:true});
 const runDir=join(root,'run-'+Date.now());
 const env={...process.env,HIBERNATE_DATA_DIR:join(runDir,'data')};
 const host=resolve('native/target/debug/hibernate-host.exe');
-const extension=resolve('extensions/chrome/dist');
+const extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));
 const candidates=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(p=>/^chromium-\d+$/.test(p)).sort().reverse();
 const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',candidates[0],'chrome-win64','chrome.exe');
 const launch=()=>chromium.launchPersistentContext(join(runDir,'profile'),{executablePath,headless:true,channel:'chromium',env,args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});

@@ -1,5 +1,9 @@
 # Architecture
 
+The automatic Windows app layer is specified in [Generic app architecture](GENERIC-APP-ARCHITECTURE.md). `adapters.rs` supplies capability descriptors; `app_windows.rs` supplies read-only OS observations (including a size-only restart query requiring VM_READ); `reconstruction.rs` separates identity, launch, geometry, document and close evidence; `app_context.rs` supplies expiring native selections, protected metadata capture and locally authorized, single-attempt executable relaunch. `app_launch.rs` binds new-process observations to a held process handle and supplies optional creation-time geometry hints. Checkpoints route the reserved native discovery client directly, without impersonating an extension. Generic results never grant reviewed close or semantic readiness. Chrome and VS Code version-1 snapshot bodies and their existing native close contracts are retained.
+
+Schema 6 adds `generic_origins` and `generic_launch_attempts`. These local records are excluded from exports/imports; origins are deleted with their snapshot. Older schema-5 builds reject a schema-6 database. Roll back binaries using the Git checkpoint, and restore a pre-upgrade database backup rather than downgrading this journal in place. Isolated data directories have independent desktop leases and WebView storage, and suppress personal integration enrollment.
+
 ## Boundaries
 
 ```
@@ -40,7 +44,7 @@ VS Code body version 1: workspace URI/folder URIs, editor groups and local text-
 
 Context body version 1: project-associated Shell folder URLs and manually defined terminal context, with provenance. This is not a claim to have captured a running Windows Terminal session.
 
-The SQLite schema is version 5, with explicit migrations for projects, account-protected payloads, terminal sessions, snapshot indexing, checkpoints, reconstruction runs, project-close journals and native close observations. Desktop and native host must be upgraded together. Older builds reject this database because they cannot recover pending project closes safely. Newer database/adapter versions are rejected. The connection uses WAL, `synchronous=FULL`, `secure_delete`, a busy timeout and parameterized SQL. An acknowledged snapshot commit is required before close. SQLite durability still depends on Windows/storage hardware honoring flushes. DPAPI protects payloads, not all database columns or historical backup copies.
+The SQLite schema is version 6, with explicit migrations for projects, account-protected payloads, terminal sessions, snapshot indexing, checkpoints, reconstruction runs, project-close journals, native close observations and generic capture/launch authority. Desktop and native host must be upgraded together. Older builds reject this database because they cannot interpret the current journals safely. Newer database/adapter versions are rejected. The connection uses WAL, `synchronous=FULL`, `secure_delete`, a busy timeout and parameterized SQL. An acknowledged snapshot commit is required before close. SQLite durability still depends on Windows/storage hardware honoring flushes. DPAPI protects payloads, not all database columns or historical backup copies.
 
 ## Operation protocol and recovery
 

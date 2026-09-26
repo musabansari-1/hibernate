@@ -6,10 +6,10 @@ import assert from 'node:assert/strict';
 const root=resolve('.validation/close-safety');await mkdir(root,{recursive:true});
 const candidates=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(p=>/^chromium-\d+$/.test(p)).sort().reverse();
 const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',candidates[0],'chrome-win64','chrome.exe');
-const extension=resolve('extensions/chrome/dist');
+const extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));
 const server=createServer((_,res)=>res.end('<title>Hibernate close safety fixture</title><input id="work"><script>onbeforeunload=e=>{e.preventDefault();e.returnValue=""}</script>'));
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
-const context=await chromium.launchPersistentContext(join(root,'profile-'+Date.now()),{executablePath,headless:true,channel:'chromium',args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
+const context=await chromium.launchPersistentContext(join(root,'profile-'+Date.now()),{env:{...process.env,HIBERNATE_DATA_DIR:join(root,'data-'+Date.now())},executablePath,headless:true,channel:'chromium',args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`]});
 try{
  const worker=context.serviceWorkers()[0]??await context.waitForEvent('serviceworker');
  const win=await worker.evaluate(url=>chrome.windows.create({url}),`http://127.0.0.1:${server.address().port}`);

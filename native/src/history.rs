@@ -110,11 +110,12 @@ fn import_value(c: &mut Connection, envelope: &Value) -> R<String> {
     let s = &envelope["snapshot"];
     let adapter = s["adapter"]
         .as_str()
-        .filter(|a| ["chrome", "vscode", "context"].contains(a))
+        .filter(|a| crate::adapters::descriptor(a).is_some())
         .ok_or("Unsupported snapshot adapter")?;
     if s["body"]["version"] != 1 || s["body"]["adapter"] != adapter {
         return Err("Unsupported or mismatched adapter schema".into());
     }
+    crate::adapters::validate_snapshot(adapter, &s["body"])?;
     let client = s["client"]
         .as_str()
         .filter(|s| !s.is_empty() && s.len() < 200)
@@ -146,6 +147,9 @@ fn import_value(c: &mut Connection, envelope: &Value) -> R<String> {
     Ok(id)
 }
 pub fn delete(id: &str, confirmation: &str) -> R<()> {
+    let _guard = crate::checkpoints::OPERATION
+        .try_lock()
+        .map_err(|_| "Wait for the active project operation before deleting a snapshot")?;
     if confirmation != id {
         return Err("Confirm the exact snapshot ID before permanent deletion".into());
     }
@@ -164,6 +168,8 @@ pub fn delete(id: &str, confirmation: &str) -> R<()> {
         return Err("Wait for the pending snapshot operation before deleting it".into());
     }
     tx.execute("DELETE FROM snapshot_index WHERE id=?", [id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM generic_origins WHERE snapshot_id=?", [id])
         .map_err(|e| e.to_string())?;
     if tx
         .execute("DELETE FROM snapshots WHERE id=?", [id])

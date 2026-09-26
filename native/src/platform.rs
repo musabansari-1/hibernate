@@ -45,44 +45,71 @@ pub fn process_ended(pid: u32, expected_start: &str) -> Result<bool, String> {
 pub struct DesktopLease {
     _handle: OwnedHandle,
 }
+fn isolated_desktop_name(
+    directory: &std::path::Path,
+    normal: &std::path::Path,
+) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    let canonical = std::fs::canonicalize(directory).map_err(|e| e.to_string())?;
+    let key = |p: &std::path::Path| p.to_string_lossy().replace('/', "\\").to_lowercase();
+    let path = key(&canonical);
+    // Aliases must share one journal owner; overrides must never bypass the normal lease.
+    if std::fs::canonicalize(normal).is_ok_and(|normal| key(&normal) == path) {
+        return Err(
+            "An isolated data directory must differ from the normal application data directory"
+                .into(),
+        );
+    }
+    Ok(format!(
+        "Local\\ProjectHibernate.Desktop.{:x}",
+        Sha256::digest(path.as_bytes())
+    ))
+}
+
 /// Hold one desktop journal owner per Windows session. The host remains independently callable.
 pub fn desktop_lease() -> Result<Option<DesktopLease>, String> {
     unsafe {
-        let handle = CreateMutexW(
-            None,
-            false,
-            windows::core::w!("Local\\ProjectHibernate.Desktop"),
-        )
-        .map_err(|e| e.to_string())?;
+        // Separate databases must not activate or reset a personal desktop session.
+        // The same isolated database still has exactly one journal owner.
+        let isolated = std::env::var_os("HIBERNATE_DATA_DIR").is_some();
+        let name = if isolated {
+            let database = crate::store::path()?;
+            let normal = std::path::PathBuf::from(
+                std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is missing")?,
+            )
+            .join("ProjectHibernate");
+            isolated_desktop_name(
+                database.parent().ok_or("Missing database directory")?,
+                &normal,
+            )?
+        } else {
+            "Local\\ProjectHibernate.Desktop".into()
+        };
+        let name: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+        let handle = CreateMutexW(None, false, windows::core::PCWSTR(name.as_ptr()))
+            .map_err(|e| e.to_string())?;
         let exists = windows::Win32::Foundation::GetLastError()
             == windows::Win32::Foundation::ERROR_ALREADY_EXISTS;
         let owned = OwnedHandle(handle);
         if exists {
+            if isolated {
+                return Ok(None);
+            }
             // Window titles are matching keys for single-instance focus. The current
             // ASCII title is tried first; earlier titles stay as fallbacks so an older
             // window still gets focused instead of a second instance appearing.
-            let window = FindWindowW(
-                None,
-                windows::core::w!("ContextSleep - Private Beta"),
-            )
-            .or_else(|_| {
-                FindWindowW(
-                    None,
-                    windows::core::w!("ContextSleep · Private Beta"),
-                )
-            })
-            .or_else(|_| {
-                FindWindowW(
-                    None,
-                    windows::core::w!("Project Hibernate · Private Beta"),
-                )
-            })
-            .or_else(|_| {
-                FindWindowW(
-                    None,
-                    windows::core::w!("Project Hibernate · Technical Preview"),
-                )
-            });
+            let window = FindWindowW(None, windows::core::w!("ContextSleep - Private Beta"))
+                .or_else(|_| FindWindowW(None, windows::core::w!("ContextSleep · Private Beta")))
+                .or_else(|_| {
+                    FindWindowW(None, windows::core::w!("Project Hibernate · Private Beta"))
+                })
+                .or_else(|_| {
+                    FindWindowW(
+                        None,
+                        windows::core::w!("Project Hibernate · Technical Preview"),
+                    )
+                });
             if let Ok(window) = window {
                 let _ = ShowWindow(window, SW_RESTORE);
                 let _ = SetForegroundWindow(window);
@@ -418,5 +445,30 @@ pub fn memory() -> Result<Value, String> {
         Ok(
             json!({"at": crate::now(), "totalPhysical": m.ullTotalPhys, "availablePhysical": m.ullAvailPhys, "chromeWorkingSet": working, "chromePrivateCommit": commit, "unreadableProcesses": unreadable,"sourceBrowserPid":source,"sourceBrowserWorkingSet":source.map(|_|source_working),"sourceBrowserPrivateCommit":source.map(|_|source_commit),"sourceBrowserUnreadable":source.map(|_|source_unreadable)}),
         )
+    }
+}
+
+#[cfg(test)]
+mod lease_tests {
+    use super::isolated_desktop_name;
+    #[test]
+    fn isolated_database_aliases_share_a_lease_and_cannot_bypass_normal_ownership() {
+        let root = std::env::temp_dir().join(format!("hibernate-lease-{}", uuid::Uuid::new_v4()));
+        let normal = root.join("normal");
+        let isolated = root.join("isolated");
+        std::fs::create_dir_all(&normal).unwrap();
+        let name = isolated_desktop_name(&isolated, &normal).unwrap();
+        assert_eq!(
+            name,
+            isolated_desktop_name(&isolated.join("."), &normal).unwrap()
+        );
+        assert_eq!(
+            name,
+            isolated_desktop_name(&isolated.join("..").join("isolated"), &normal).unwrap()
+        );
+        assert!(isolated_desktop_name(&normal.join("."), &normal).is_err());
+        std::fs::remove_dir(&isolated).unwrap();
+        std::fs::remove_dir(&normal).unwrap();
+        std::fs::remove_dir(&root).unwrap();
     }
 }

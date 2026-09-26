@@ -29,6 +29,7 @@ const port = await new Promise(resolvePort => {
 const ready = join(run, 'initial-ready.json');
 const env = {
   ...process.env,
+ HIBERNATE_TEST_DISCOVERY_EXECUTABLES:'[]',
   HIBERNATE_DATA_DIR: join(run, 'data'),
   HIBERNATE_TEST_HOST: host,
   HIBERNATE_TEST_FAILURE: join(run, 'failure.txt'),
@@ -79,17 +80,17 @@ try {
     catch { return null; }
   }, 'desktop');
   page = webview.contexts()[0].pages()[0];
-  await page.getByLabel('Workspace name').fill('Cold VS Code fixture');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByLabel('Workspace name').fill('Cold VS Code fixture');
   await page.getByLabel('Project folder (manual association)').fill(project);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();await page.getByRole('button',{name:'Workspace',exact:true}).click();
 
   const state = await dashboard();
   const item = state.reports.find(r => r.client === report.client).body.items[0];
   const projectId = state.workspace.id;
-  const projectSelector = page.getByLabel(`Project for ${item.title}`);
+  const projectSelector = page.getByLabel(`Workspace for ${item.title}`);
   if (await projectSelector.count()) await projectSelector.selectOption(projectId);
-  await page.getByLabel(`Select ${item.title}`, { exact: true }).check();
-  await page.getByRole('button', { name: 'Capture & review workspace sleep', exact: true }).click();
+  await page.getByRole('button',{name:'Workspace',exact:true}).click();await page.getByLabel(`Select ${item.title}`, { exact: true }).check();
+  await page.getByRole('button', { name: 'Save this workspace', exact: true }).last().click();
   const checkpoint = await until(async () => {
     const value = (await dashboard()).checkpoints[0];
     return value?.state === 'captured' ? value : null;
@@ -98,11 +99,11 @@ try {
   assert.ok(entry, JSON.stringify(checkpoint.body.entries));
 
   const card = page.locator('.checkpoint').first();
-  await card.getByRole('button', { name: 'Review workspace sleep', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Review workspace sleep' });
-  await dialog.getByRole('button', { name: 'Select supported windows', exact: true }).click();
-  await dialog.getByRole('checkbox', { name: 'I have saved the work in every selected window and reviewed what can be reconstructed.', exact: true }).check();
-  await dialog.getByRole('button', { name: 'Sleep selected windows', exact: true }).click();
+  await card.getByRole('button', { name: 'Check sleep readiness', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'What can sleep right now?' });
+  await dialog.getByRole('button', { name: 'Select all safe', exact: true }).click();
+  await dialog.getByRole('checkbox', { name: 'I saved the work in every selected window and reviewed what can be reconstructed.', exact: true }).check();
+  await dialog.getByRole('button', { name: /^Sleep \d+ windows?$/, exact: true }).click();
   const closed = await until(async () => {
     const value = (await dashboard()).checkpoints[0]?.hibernations[0];
     return value?.state === 'closed-selected' ? value : null;
@@ -113,7 +114,7 @@ try {
   await until(async () => (await dashboard()).reports.find(r => r.client === report.client)?.at === 0, 'VS Code disconnect marker');
 
   await card.getByRole('checkbox', { name: entry.label, exact: true }).check();
-  await card.getByRole('button', { name: 'Restore selected context', exact: true }).click();
+  await card.getByRole('button', { name: /^Restore \d+ parts?$/, exact: true }).click();
   const restored = await until(async () => (await dashboard()).checkpoints[0]?.runs.find(r => r.state === 'finished'), 'VS Code cold restore');
   const step = restored.body.steps.find(s => s.kind === 'vscode');
   assert.equal(step.state, 'observed', JSON.stringify(step));
