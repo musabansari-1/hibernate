@@ -12,7 +12,7 @@ if(!packageDir)throw new Error('Set HIBERNATE_TEST_PACKAGE to the newly built po
 const run=resolve('.validation/generic-apps/run-'+Date.now());await mkdir(run,{recursive:true});
 const fixture=join(run,'UnmanagedFixture.exe'),sibling=join(run,'UnrelatedFixture.exe'),geometry=join(run,'GeometryFixture.exe');
 for(const target of [fixture,sibling,geometry])await copyFile(resolve('native/target/debug/examples/desktop_fixture.exe'),target);
-await writeFile(geometry.replace(/\.exe$/,'.scenario.json'),JSON.stringify({single:true}));
+await writeFile(geometry.replace(/\.exe$/,'.scenario.json'),JSON.stringify({single:true,catalogClass:true}));
 const marker=(exe,ext)=>exe.replace(/\.exe$/,'.'+ext);
 const port=await new Promise(r=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
 const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data'),HIBERNATE_TEST_DISCOVERY_EXECUTABLES:JSON.stringify([fixture,sibling,geometry]),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-port=${port}`};
@@ -34,6 +34,12 @@ try{
  checks.push('A second desktop using an alias of the same isolated database exited without taking journal ownership');
  const initial=await until(async()=>{const d=await data();return d.apps.items.filter(i=>i.window.owner?.executable.toLowerCase()===fixture.toLowerCase()).length===2?d:null;},'automatic fixture discovery');
  const apps=initial.apps.items.filter(i=>i.window.owner?.executable.toLowerCase()===fixture.toLowerCase());
+ for(const app of initial.sleepMemory.apps){
+  assert.notEqual(app.strategy,'GenericDeepFreeze');
+  assert.equal(app.assessment.safeToFreeze,false);
+  await assert.rejects(ipc('review_app_sleep',{ids:[app.id]}));
+ }
+ checks.push('Unknown images, including a fixture using the catalog window class, cannot acquire Deep Freeze authority');
  assert.equal(new Set(apps.map(a=>a.group)).size,1);
  for(const app of apps){assert.ok(app.window.sameOwnerWindows>=3);assert.equal(app.capabilities.reviewedClose,false);assert.equal(app.capabilities.semanticRestore,false);assert.equal(app.capabilities.contextCapture,true);}
  checks.push('Two visible windows and hidden shared-process ownership discovered without registration; no close or semantic authority granted');
@@ -97,7 +103,7 @@ try{
  const geometryCheckpoint=(await data()).checkpoints.find(c=>c.id===geometryPoint);const geometrySid=geometryCheckpoint.body.entries[0].snapshotId;
  const geometrySnapshot=(await data()).snapshots.find(s=>s.id===geometrySid);assert.equal(geometrySnapshot.body.reconstruction.windowPlacementRequestAvailable,true);
  await writeFile(marker(geometry,'stop'),'stop');await until(()=>geometricSource.exitCode!==null,'geometry source exited');await rm(marker(geometry,'stop'));
- await writeFile(marker(geometry,'scenario.json'),JSON.stringify({single:true,startupGeometry:true}));
+ await writeFile(marker(geometry,'scenario.json'),JSON.stringify({single:true,startupGeometry:true,catalogClass:true}));
  await ipc('restore_checkpoint',{id:geometryPoint,selected:[geometrySid],acknowledgedServices:false});
  const geometryRun=(await data()).checkpoints.find(c=>c.id===geometryPoint).runs[0];assert.equal(geometryRun.body.steps[0].result.placement.observedMatch,true,JSON.stringify(geometryRun));assert.equal(geometryRun.body.readiness.verified,false);
  assert.equal(await count(geometry),2);assert.equal(await readFile(marker(geometry,'close-requested'),'utf8').catch(()=>null),null);assert.equal(other.exitCode,null);

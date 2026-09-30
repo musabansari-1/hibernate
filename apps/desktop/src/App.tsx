@@ -14,6 +14,7 @@ import {SetupGuide} from './components/SetupGuide';
 import {ProductTour} from './components/ProductTour';
 import {StageRail, type Stage, type StageKey} from './components/StageRail';
 import {MemoryGauge} from './components/MemoryGauge';
+import {AppMemory} from './components/AppMemory';
 import {Wordmark} from './components/Logo';
 import {Badge, Card, Empty, Evidence, Icon, SectionHead} from './components/ui';
 import {appLabel, describe, gb, gbExact, plural, relativeTime} from './lib/format';
@@ -496,6 +497,7 @@ export function App() {
   /* --------------------------------------------------------------- workspace */
 
   const workspaceView = <>
+    {data && <AppMemory data={data} onRefresh={refresh} onVerified={()=>goTo('apps')} />}
     {data && setupOpen && <div id="setup"><SetupGuide data={data} onClose={() => {localStorage.setItem('hibernate-setup-hidden', '1'); setSetupOpen(false);}} onGo={id => goTo(id, id === 'workspace-settings' ? 'settings' : 'workspace')} /></div>}
 
     <section className={`hero stage-${hero.tone}`} aria-labelledby="hero-title">

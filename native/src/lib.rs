@@ -27,3 +27,8 @@ mod app_launch;
 mod app_dpi;
 pub mod app_windows;
 pub mod reconstruction;
+pub mod freeze_assessment;
+pub mod deep_freeze;
+mod freeze_engine;
+#[cfg(feature = "deep-freeze-lab")]
+pub mod freeze_lab;

@@ -20,7 +20,7 @@ async function until(fn,label,timeout=65000){const end=Date.now()+timeout;while(
 let chrome,code,desktop,webview,page;const errors=[];
 async function startCode(phase){
  const ready=join(run,phase+'-ready.json');
- code=spawn(codeExe,['--user-data-dir',join(run,'user'),'--extensions-dir',join(run,'extensions'),'--extensionDevelopmentPath='+resolve('extensions/vscode'),'--extensionTestsPath='+resolve('tests/vscode-project-runner.cjs'),'--skip-welcome','--skip-release-notes','--disable-gpu','--disable-workspace-trust',project],{env:{...env,HIBERNATE_PROJECT_PHASE:phase,HIBERNATE_TEST_READY:ready},windowsHide:true,stdio:'ignore'});
+ code=spawn(codeExe,['--user-data-dir',join(run,'user'),'--extensions-dir',join(run,'extensions'),'--extensionDevelopmentPath='+(process.env.HIBERNATE_TEST_VSCODE_EXTENSION_DIR??resolve('extensions/vscode')),'--extensionTestsPath='+resolve('tests/vscode-project-runner.cjs'),'--skip-welcome','--skip-release-notes','--disable-gpu','--disable-workspace-trust',project],{env:{...env,HIBERNATE_PROJECT_PHASE:phase,HIBERNATE_TEST_READY:ready},windowsHide:true,stdio:'ignore'});
  const marker=await until(async()=>JSON.parse(await readFile(ready,'utf8').catch(()=>'null')),'VS Code ready');
  return until(async()=>(await dashboard()).reports.find(r=>r.adapter==='vscode'&&r.body.instance===marker.instance&&Date.now()-r.at<15000),'fresh VS Code report');
 }

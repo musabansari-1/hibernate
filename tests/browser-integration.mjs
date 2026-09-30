@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 const root=resolve('.validation/browser');await mkdir(root,{recursive:true});
 const runDir=join(root,'run-'+Date.now());
 const env={...process.env,HIBERNATE_DATA_DIR:join(runDir,'data')};
-const host=resolve('native/target/debug/hibernate-host.exe');
+const host=process.env.HIBERNATE_TEST_HOST??resolve('native/target/debug/hibernate-host.exe');
 const extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));
 const candidates=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(p=>/^chromium-\d+$/.test(p)).sort().reverse();
 const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',candidates[0],'chrome-win64','chrome.exe');
@@ -26,13 +26,20 @@ const results={browser:executablePath,checks:[],memory:null};
 try{
   const report=await until(()=>dashboard().reports.find(r=>r.adapter==='chrome'&&Date.now()-r.at<15000),'native bridge connection');
   const fixture=await job(report.client,'fixture');assert.equal(fixture.state,'done',JSON.stringify(fixture));
-  const windowId=await sw.evaluate(async()=>{const windows=await chrome.windows.getAll({populate:true});return windows.find(w=>w.tabs?.some(t=>t.url?.includes('/fixture.html?tab=')))?.id;});assert.ok(windowId);
-  await sw.evaluate(async id=>{
-    const existing=await chrome.tabs.query({windowId:id});
-    for(let i=existing.length+1;i<=50;i++)await chrome.tabs.create({windowId:id,url:chrome.runtime.getURL('fixture.html?tab='+i),active:false});
+  // MV3 can replace the worker obtained before the native fixture job. Retry only
+  // fixture discovery/setup, not capture, close, restore or their assertions.
+  const windowId=await until(async()=>{sw=await worker();try{return await sw.evaluate(async()=>{const windows=await chrome.windows.getAll({populate:true});return windows.find(w=>w.tabs?.some(t=>t.url?.includes('/fixture.html?tab=')))?.id;});}catch(e){if(!String(e).includes('Service worker restarted'))throw e;return null;}},'current fixture worker');assert.ok(windowId);
+  await until(async()=>{sw=await worker();try{await sw.evaluate(async id=>{
+    // Setup is idempotent across a worker restart: observe each numbered fixture
+    // URL before creating it. Reassigning the same tabs leaves the old group empty.
+    for(let i=1;i<=50;i++){
+      const url=chrome.runtime.getURL('fixture.html?tab='+i);
+      const existing=await chrome.tabs.query({windowId:id});
+      if(!existing.some(t=>t.url===url))await chrome.tabs.create({windowId:id,url,active:false});
+    }
     const tabs=await chrome.tabs.query({windowId:id});await chrome.tabs.update(tabs[17].id,{active:true});
     const g=await chrome.tabs.group({tabIds:tabs.slice(20,30).map(t=>t.id)});await chrome.tabGroups.update(g,{title:'Second group',color:'blue',collapsed:true});
-  },windowId);
+  },windowId);return true;}catch(e){if(!String(e).includes('Service worker restarted'))throw e;return false;}},'50-tab fixture setup');
   await until(()=>sw.evaluate(async id=>(await chrome.tabs.query({windowId:id})).every(t=>t.status==='complete'),windowId),'fixture load');
   const fixturePages=context.pages().filter(p=>p.url().includes('/fixture.html?tab='));
   const allocated=await Promise.all(fixturePages.map(p=>p.evaluate(()=>globalThis.hibernateFixture?.byteLength??0)));

@@ -1,5 +1,19 @@
 # Product status — 18 September 2026
 
+## Deep Freeze supported beta — 30 September 2026
+
+The memory-first desktop enables whole-process Sleep/Wake for the pinned official
+SumatraPDF 3.6.1 x64 portable image on Windows build 26200, without an integration.
+Unknown versions and app families stay open. Existing Chrome/VS Code workspace
+sleep retains its reviewed reconstruction workflow. The native candidate lifecycle
+and review refusal checks pass. The packaged real-document Sleep/Wake and controller
+crash/restart checks also passed; see [the validation report](DEEP-FREEZE-VALIDATION.md)
+for the package path, regression results and remaining broad-app work. Job membership is
+observed but does not define app ownership; only the explicit independent-process
+contract can permit it. External termination and remote timeouts remain outside
+the guarantee. Product database schema stays 6; the encrypted freeze journal is
+schema 1. See [architecture and limits](DEEP-FREEZE-ARCHITECTURE.md).
+
 ## Automatic Windows app adapters ? 22 September 2026
 
 The generic adapter discovers ordinary visible desktop windows automatically and now reports explicit reconstruction capabilities and refusal reasons. Protected capture includes package/restart metadata and executable file continuity; eligible one-shot relaunches can request and observe limited startup geometry. **No new generic class qualifies for Sleep:** OS metadata cannot prove working-state coverage or exact conditional close authority. Unknown apps remain open and never claim document recovery or Verified workspace readiness. Packaged/brokered activation remains unsupported. Chrome/VS Code retain their specialized contracts. See [the architecture](GENERIC-APP-ARCHITECTURE.md) and [current validation evidence and boundaries](GENERIC-APP-VALIDATION.md). Older dated results below are historical.

@@ -6,6 +6,14 @@ A local-first Windows app for putting a **development workspace** away and recon
 
 ## Run
 
+The memory-first view now offers Deep Freeze for the pinned official SumatraPDF
+3.6.1 x64 portable build on Windows 11 build 26200, without an app integration.
+It pauses the same process and trims physical working-set pages; Wake resumes it.
+Other app families stay open. Commit remains allocated, external sessions can
+time out, and process exit or reboot loses the in-memory state.
+See [the architecture](docs/DEEP-FREEZE-ARCHITECTURE.md) and
+[validation results](docs/DEEP-FREEZE-VALIDATION.md).
+
 Open Windows apps now appear automatically without an adapter setup step. Select app contexts alongside Chrome/VS Code entries and save one workspace checkpoint. Generic context saves window/executable metadata and may reopen an eligible unchanged app executable; it **does not capture documents or unsaved state, automatically close unknown apps, or verify their working state**. Specialized adapters add capabilities only where supported. See [architecture and boundaries](docs/GENERIC-APP-ARCHITECTURE.md).
 
 The compiled desktop application is `apps/desktop/src-tauri/target/release/project-hibernate.exe` after `npm.cmd run desktop:build`.

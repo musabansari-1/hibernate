@@ -66,6 +66,7 @@ export type Job = {
     snapshot?: Snapshot;
 };
 export type Dashboard = {
+    sleepMemory?: SleepMemory;
     apps?: {at:number;error:string|null;items:NativeApp[]};
     adapterCatalog?: {id:string;label:string;reviewedClose:boolean;semanticRestore:boolean;verification:string}[];
     checkpoints: ProjectCheckpoint[];
@@ -98,6 +99,13 @@ export type Dashboard = {
         projectPath: string;
     };
 };
+export type ProcessIdentity = {pid:number;processStarted:string;executable:string};
+export type ProcessMemory = {at:number;workingSet:number;privateCommit:number;availablePhysical:number;totalPhysical:number;pageFaultCount:number};
+export type FreezeAssessment = {safeToFreeze:boolean;blockers:string[];warnings:string[]};
+export type SleepApp = {id:string;label:string;title:string;identity:ProcessIdentity;memory:ProcessMemory|null;strategy:'VerifiedReconstruction'|'GenericDeepFreeze'|'RestoreOnly'|'Blocked';assessment:FreezeAssessment;allWindows:number;enhancement:string|null};
+export type SleepReview = {id:string;expiresAt:number;warning:string;apps:{label:string;identity:ProcessIdentity;memory:ProcessMemory;windows:{visible:boolean;title:string}[]}[]};
+export type SleepOperation = {id:string;state:string;canWake:boolean;body:{targets:{identity:ProcessIdentity}[];before:ProcessMemory[];after?:ProcessMemory[];review?:SleepReview;recovery?:{detail:string};wakeErrors?:string[]}};
+export type SleepMemory = {at:number;apps:SleepApp[];operations:SleepOperation[];error:string|null};
 export type ReconstructionAssessment = {version:1;disposition:'restore-only'|'keep-open';summary:string;discovered:boolean;processIdentityProven:boolean;identityProven:boolean;relaunchRecipeAvailable:boolean;windowPlacementRestorable:boolean;windowPlacementRequestAvailable:boolean;documentContextRestorable:boolean;unsavedStateRestorable:boolean;safeCloseAllowed:boolean;restoreVerifiable:boolean;verificationScope:string;semanticAdapterRequired:boolean;blockers:string[]};
 export type NativeApp = {id:string;label:string;group:string|null;enhancement:string|null;window:{title:string;handle:string;class:string;owner:{pid:number;processStarted:string;executable:string}|null;sameOwnerWindows:number;appUserModelId:string|null};capabilities:{contextCapture:boolean;reviewedClose:false;semanticRestore:false;limitation:string;reconstruction?:ReconstructionAssessment}};
 export type CheckpointEntry={id:string;snapshotId?:string;kind:string;index?:number;label:string;detail?:string;executable?:string};

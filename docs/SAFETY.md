@@ -23,7 +23,21 @@ Explorer and Windows Terminal are not closed. A folder is not proof that an Expl
 
 ## Native authority
 
-Windows discovery uses read-only process/token/OS metadata queries. The size-only Application Restart query additionally requires PROCESS_VM_READ for non-elevated owners; it collects no argument string and performs no direct process-memory reads. Visible named top-level windows are discovered independently of the specialized adapters. HWND, PID/creation identity, executable, class, placement, package identity, restart registration, AppUserModelID and same-owner window counts are observations, never saved-work or close authority. Hidden windows contribute to sharing evidence. There is no process-suspend, working-set-trim, terminate, arbitrary `WM_CLOSE`, credential access or elevation feature.
+The `deep-freeze-lab` entry points and fault injection are confined to disposable
+validation builds. The desktop enables reviewed whole-process Sleep/Wake only for
+the pinned SumatraPDF 3.6.1 x64 portable image on Windows build 26200. All other app
+versions/families stay open. Job membership alone neither grants nor denies this
+app's independent-process contract; no containing job is modified. Unknown job
+membership, ambiguous groups and unsafe security evidence still block the action.
+The native messaging host exposes no freeze command. The shared engine's native
+APIs are undocumented. External supervisors can terminate a paused app, and
+network/device sessions can time out. Preservation requires the same process to
+remain alive. Commit stays allocated, physical reclaim varies, and reboot is not
+supported. Controller exit releases its owned pauses; recovery never replays them.
+See [the production eligibility gate](DEEP-FREEZE-ARCHITECTURE.md) and
+[measured experiment boundaries](DEEP-FREEZE-VALIDATION.md).
+
+Windows discovery uses read-only process/token/OS metadata queries. The size-only Application Restart query additionally requires PROCESS_VM_READ for non-elevated owners; it collects no argument string and performs no direct process-memory reads. Visible named top-level windows are discovered independently of the specialized adapters. HWND, PID/creation identity, executable, class, placement, package identity, restart registration, AppUserModelID and same-owner window counts are observations, never saved-work or close authority. Hidden windows contribute to sharing evidence. Discovery itself never suspends, trims or closes a process. Only the separate reviewed Deep Freeze authority can suspend and trim a catalog-supported app. There is no generic terminate, arbitrary `WM_CLOSE`, credential access or elevation fallback.
 
 Generic restore accepts only a saved native snapshot, never a free-form executable or command. Relaunch requires an original local capture record, a fixed local GUI executable, unchanged SHA-256/size/volume-and-file identity while the file is held against write/delete sharing, original-process exit and no observed running matching application. System paths, known semantic adapters, shells/runtimes, elevation, packaged/unknown package identity and present/unknown restart or taskbar metadata are excluded. Intent is durable and single-attempt per captured process instance. Imports carry no native origin or launch-attempt authority. No arguments, documents, taskbar commands or restart strings are replayed. Application presence cannot satisfy semantic workspace readiness. Creation-time geometry hints may apply to a newly launched sole normal window; no discovered HWND is moved, and observed geometry cannot verify working state. Legacy generic captures need fresh capture for relaunch. Concurrent external launches and singleton routing cannot be made atomic by a generic observer.
 

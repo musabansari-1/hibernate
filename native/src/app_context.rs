@@ -31,9 +31,9 @@ fn cache() -> &'static Mutex<SelectionCache> {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct Executable {
+pub(crate) struct Executable {
     path: String,
-    sha256: String,
+    pub(crate) sha256: String,
     bytes: u64,
     #[serde(default)]
     file_identity: Option<String>,
@@ -221,7 +221,7 @@ fn local_executable(path: &str) -> R<()> {
     Ok(())
 }
 
-fn executable(path: &str) -> R<(Executable, File)> {
+pub(crate) fn executable(path: &str) -> R<(Executable, File)> {
     local_executable(path)?;
     // Deny write/delete sharing through capture/launch. A digest change (including an app update)
     // requires a fresh capture. This is file continuity, not publisher authentication.

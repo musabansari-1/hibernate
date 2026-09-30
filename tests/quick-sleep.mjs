@@ -5,7 +5,7 @@ import {mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
 const root=resolve('.validation/quick-sleep');const run=join(root,'run-'+Date.now());await mkdir(join(run,'profile'),{recursive:true});
-const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data')};const native=args=>{const r=spawnSync(resolve('native/target/debug/hibernate-host.exe'),args,{env,encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr);return r.stdout.trim();};const dashboard=()=>JSON.parse(native(['--diagnose']));
+const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data')};const native=args=>{const r=spawnSync(process.env.HIBERNATE_TEST_HOST??resolve('native/target/debug/hibernate-host.exe'),args,{env,encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr);return r.stdout.trim();};const dashboard=()=>JSON.parse(native(['--diagnose']));
 async function until(fn,label){const deadline=Date.now()+45000;while(Date.now()<deadline){const v=await fn();if(v)return v;await new Promise(r=>setTimeout(r,250));}throw new Error('Timed out: '+label);}
 const server=createServer((_,res)=>res.end('<title>Quick Sleep fixture</title><p>Saved, input-free local test page</p>'));await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const candidates=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(p=>/^chromium-\d+$/.test(p)).sort().reverse();const executablePath=process.env.HIBERNATE_TEST_CHROMIUM??join(process.env.LOCALAPPDATA,'ms-playwright',candidates[0],'chrome-win64','chrome.exe');const extension=(process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist'));

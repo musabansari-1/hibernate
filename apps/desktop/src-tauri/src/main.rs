@@ -11,7 +11,7 @@ async fn review_checkpoint_close(id:String)->Result<serde_json::Value,String>{ta
 async fn close_checkpoint(review_id:String,selected:Vec<String>,acknowledged:bool)->Result<String,String>{tauri::async_runtime::spawn_blocking(move||hibernate_native::hibernation::close(&review_id,selected,acknowledged)).await.map_err(|e|e.to_string())?}
 #[tauri::command]
 async fn dashboard() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(store::dashboard)
+    tauri::async_runtime::spawn_blocking(|| {let mut data=store::dashboard()?;data["sleepMemory"]=hibernate_native::deep_freeze::dashboard(&data["apps"]).unwrap_or_else(|e|serde_json::json!({"apps":[],"operations":[],"error":e}));Ok(data)})
         .await
         .map_err(|e| e.to_string())?
 }
@@ -21,6 +21,14 @@ async fn export_diagnostics() -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?
 }
+#[tauri::command]
+async fn review_app_sleep(ids:Vec<String>)->Result<serde_json::Value,String>{tauri::async_runtime::spawn_blocking(move||hibernate_native::deep_freeze::review(ids)).await.map_err(|e|e.to_string())?}
+#[tauri::command]
+async fn cancel_app_sleep_review(review_id:String)->Result<(),String>{tauri::async_runtime::spawn_blocking(move||hibernate_native::deep_freeze::cancel_review(&review_id)).await.map_err(|e|e.to_string())?}
+#[tauri::command]
+async fn sleep_apps(review_id:String,acknowledged:bool)->Result<String,String>{tauri::async_runtime::spawn_blocking(move||hibernate_native::deep_freeze::sleep(&review_id,acknowledged)).await.map_err(|e|e.to_string())?}
+#[tauri::command]
+async fn wake_apps(id:String)->Result<(),String>{tauri::async_runtime::spawn_blocking(move||hibernate_native::deep_freeze::wake(&id)).await.map_err(|e|e.to_string())?}
 #[tauri::command]
 fn enqueue(
     client: String,
@@ -291,6 +299,7 @@ fn main() {
                 tauri::WebviewWindowBuilder::from_config(app, &config)?.data_directory(directory).build()?;
             }
             hibernate_native::checkpoints::recover().map_err(std::io::Error::other)?;
+            hibernate_native::deep_freeze::initialize().map_err(std::io::Error::other)?;
             let _observer = hibernate_native::native_close::start_observer().map_err(std::io::Error::other)?;
             use tauri::{menu::{Menu,MenuItem},tray::TrayIconBuilder};
             let open=MenuItem::with_id(app,"open","Open ContextSleep",true,None::<&str>)?;
@@ -302,7 +311,7 @@ fn main() {
             let mut tray=TrayIconBuilder::with_id("hibernate").tooltip("ContextSleep - your saved contexts").menu(&menu).on_menu_event(|app,event|match event.id.as_ref(){
                 "open"=>{if let Some(w)=app.get_webview_window("main"){let _=w.show();let _=w.unminimize();let _=w.set_focus();}},
                 "project_folder"|"project_terminal"=>{let kind=if event.id.as_ref()=="project_folder"{"explorer"}else{"terminal"}.to_string();let handle=app.clone();std::thread::spawn(move||{let opened=store::open().and_then(|c|hibernate_native::projects::active(&c)).ok().and_then(|p|p["projectPath"].as_str().filter(|s|!s.trim().is_empty()).map(str::to_string)).is_some_and(|path|hibernate_native::context::restore_folder(&kind,&path).is_ok());if !opened{if let Some(w)=handle.get_webview_window("main"){let _=w.show();let _=w.unminimize();let _=w.set_focus();}}});},
-                "quit"=>app.exit(0),_=>()});
+                "quit"=>{hibernate_native::deep_freeze::release_all();app.exit(0)},_=>()});
             if let Some(icon)=app.default_window_icon(){tray=tray.icon(icon.clone());}
             tray.build(app)?;
             std::thread::spawn(move||loop{if let Ok(m)=hibernate_native::platform::memory(){if let(Some(total),Some(available))=(m["totalPhysical"].as_f64(),m["availablePhysical"].as_f64()){let _=memory.set_text(format!("Memory in use: {:.0}%",100.0*(1.0-available/total)));}}std::thread::sleep(std::time::Duration::from_secs(30));});
@@ -311,6 +320,10 @@ fn main() {
         .on_window_event(|window,event|{if let tauri::WindowEvent::CloseRequested{api,..}=event{api.prevent_close();let _=window.hide();}})
         .invoke_handler(tauri::generate_handler![
             dashboard,
+            review_app_sleep,
+            cancel_app_sleep_review,
+            sleep_apps,
+            wake_apps,
             export_diagnostics,
             capture_checkpoint,
             restore_checkpoint,

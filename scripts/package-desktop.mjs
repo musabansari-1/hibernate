@@ -21,6 +21,8 @@ for(const [source,target] of [
  ['docs/SAFETY.md','SAFETY.md'],
  ['docs/ARCHITECTURE.md','ARCHITECTURE.md'],
  ['docs/GENERIC-APP-ARCHITECTURE.md','GENERIC-APP-ARCHITECTURE.md'],
+ ['docs/DEEP-FREEZE-ARCHITECTURE.md','DEEP-FREEZE-ARCHITECTURE.md'],
+ ['docs/DEEP-FREEZE-VALIDATION.md','DEEP-FREEZE-VALIDATION.md'],
  ['docs/RECONSTRUCTION-PLAN.md','RECONSTRUCTION-PLAN.md'],
  ['docs/GENERIC-APP-VALIDATION.md','GENERIC-APP-VALIDATION.md'],
  ['docs/PRODUCT-STATUS.md','PRODUCT-STATUS.md'],
@@ -34,6 +36,19 @@ await writeFile(join(directory,'START-HERE.md'),`# ContextSleep ${version} — p
 Run **ContextSleep.exe** on Windows 10/11 with WebView2 and Windows Terminal installed. Keep hibernate-host.exe beside it. This folder does not need Node, Rust or this source checkout to run.
 
 ContextSleep is a local-first private beta for putting away supported development-workspace context and reconstructing it with verification. The packaged VS Code + Chrome + approved-service lifecycle has passed end to end. This build is unsigned; Explorer and arbitrary terminal windows are Context Restore only, ambiguous close targets stay open, and actual Windows reboot recovery is not yet validated. No adapter claims arbitrary app state or full process hibernation. Review SAFETY.md. Closing the dashboard hides it to the tray; use the tray's Quit action to exit.
+
+## Whole-app Deep Freeze
+
+The Memory screen automatically offers Sleep for the pinned SumatraPDF 3.6.1 x64
+portable build on Windows 11 build 26200. No Sumatra integration is required.
+Review all selected windows, finish printing/external work, and confirm Sleep.
+Wake resumes the same processes. Windows remain visible while paused. Quitting
+ContextSleep releases its pauses, including after an unexpected controller exit.
+Physical RAM reclaim varies; committed memory remains allocated. External software
+can still terminate apps or time out. This does not survive process exit or reboot.
+Other app families/versions remain unavailable for Deep Freeze. Chrome and VS Code
+keep the existing reviewed reconstruction path. See DEEP-FREEZE-ARCHITECTURE.md and
+DEEP-FREEZE-VALIDATION.md for the exact supported scope and evidence.
 
 ## Fast app setup
 

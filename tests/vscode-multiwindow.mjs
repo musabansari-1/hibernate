@@ -5,7 +5,7 @@ import {resolve,join} from 'node:path';
 import assert from 'node:assert/strict';
 const root=resolve('.validation/vscode-multiwindow'),run=join(root,'run-'+Date.now());
 const exe=process.env.HIBERNATE_TEST_VSCODE??(await readFile('.validation/vscode-executable.txt','utf8')).trim();
-const host=resolve('native/target/debug/hibernate-host.exe');
+const host=process.env.HIBERNATE_TEST_HOST??resolve('native/target/debug/hibernate-host.exe');
 const extensions=join(run,'extensions'),user=join(run,'user');
 await mkdir(join(user,'User'),{recursive:true});
 for(const label of ['a','b']){await mkdir(join(run,label),{recursive:true});await writeFile(join(run,label,'saved.txt'),'Saved fixture text\n');}

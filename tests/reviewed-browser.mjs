@@ -5,7 +5,7 @@ import {mkdir,readdir,writeFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
 const root=resolve('.validation/reviewed-browser');await mkdir(root,{recursive:true});const run=join(root,'run-'+Date.now());
-const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data')};const host=resolve('native/target/debug/hibernate-host.exe');
+const env={...process.env,HIBERNATE_DATA_DIR:join(run,'data')};const host=process.env.HIBERNATE_TEST_HOST??resolve('native/target/debug/hibernate-host.exe');
 const native=args=>{const r=spawnSync(host,args,{env,encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr||'Native command failed');return r.stdout.trim();};
 const dashboard=()=>JSON.parse(native(['--diagnose']));
 async function until(fn,label){for(let i=0;i<100;i++){const v=await fn();if(v)return v;await new Promise(r=>setTimeout(r,300));}throw new Error('Timed out: '+label);}

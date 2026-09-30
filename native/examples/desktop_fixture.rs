@@ -60,7 +60,11 @@ fn main() -> windows::core::Result<()> {
         let _unsaved = (scenario["unsaved"] == true).then(|| String::from("fixture unsaved edits"));
         let class = WNDCLASSW {
             lpfnWndProc: Some(procedure),
-            lpszClassName: w!("ContextSleepIsolatedFixture"),
+            lpszClassName: if scenario["catalogClass"] == true {
+                w!("SUMATRA_PDF_FRAME")
+            } else {
+                w!("ContextSleepIsolatedFixture")
+            },
             ..Default::default()
         };
         assert_ne!(RegisterClassW(&class), 0);

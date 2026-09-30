@@ -15,18 +15,9 @@ struct Table {
     buffer: Vec<u64>,
     bytes: usize,
 }
-fn table(family: u32) -> R<Table> {
+fn table(family: u32, kind: TCP_TABLE_CLASS) -> R<Table> {
     let mut bytes = 0;
-    let mut status = unsafe {
-        GetExtendedTcpTable(
-            None,
-            &mut bytes,
-            false,
-            family,
-            TCP_TABLE_OWNER_PID_LISTENER,
-            0,
-        )
-    };
+    let mut status = unsafe { GetExtendedTcpTable(None, &mut bytes, false, family, kind, 0) };
     for _ in 0..4 {
         if status != ERROR_INSUFFICIENT_BUFFER.0 {
             return Err(format!("Windows listener query failed ({status})"));
@@ -44,7 +35,7 @@ fn table(family: u32) -> R<Table> {
                 &mut bytes,
                 false,
                 family,
-                TCP_TABLE_OWNER_PID_LISTENER,
+                kind,
                 0,
             )
         };
@@ -77,11 +68,14 @@ fn matches(address: IpAddr, port: u16, expected: SocketAddr) -> bool {
         && (address.is_unspecified() || address == expected.ip())
 }
 fn listeners(expected: SocketAddr) -> R<Vec<Value>> {
-    let t = table(if expected.is_ipv4() {
-        AF_INET.0 as u32
-    } else {
-        AF_INET6.0 as u32
-    })?;
+    let t = table(
+        if expected.is_ipv4() {
+            AF_INET.0 as u32
+        } else {
+            AF_INET6.0 as u32
+        },
+        TCP_TABLE_OWNER_PID_LISTENER,
+    )?;
     let mut found = Vec::new();
     let mut add = |address: IpAddr, port: u32, pid: u32| {
         let port = u16::from_be(port as u16);
@@ -142,6 +136,42 @@ pub fn observe(endpoint: SocketAddr) -> Value {
         }
     }
 }
+/// Positive TCP activity blocks the first freeze contract. An empty sample is
+/// not proof of idle devices, files, UDP, IPC or work delegated to other processes.
+pub(crate) fn active_tcp(pid: u32) -> R<bool> {
+    for family in [AF_INET, AF_INET6] {
+        let t = table(family.0 as u32, TCP_TABLE_OWNER_PID_ALL)?;
+        let (offset, stride) = if family == AF_INET {
+            (
+                offset_of!(MIB_TCPTABLE_OWNER_PID, table),
+                size_of::<MIB_TCPROW_OWNER_PID>(),
+            )
+        } else {
+            (
+                offset_of!(MIB_TCP6TABLE_OWNER_PID, table),
+                size_of::<MIB_TCP6ROW_OWNER_PID>(),
+            )
+        };
+        for index in row_offsets(&t, offset, stride)? {
+            let row = unsafe { t.buffer.as_ptr().cast::<u8>().add(offset + index * stride) };
+            let owner = unsafe {
+                if family == AF_INET {
+                    row.cast::<MIB_TCPROW_OWNER_PID>()
+                        .read_unaligned()
+                        .dwOwningPid
+                } else {
+                    row.cast::<MIB_TCP6ROW_OWNER_PID>()
+                        .read_unaligned()
+                        .dwOwningPid
+                }
+            };
+            if owner == pid {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,6 +180,7 @@ mod tests {
         for address in ["127.0.0.1:0", "[::1]:0"] {
             let socket = std::net::TcpListener::bind(address).unwrap();
             let endpoint = socket.local_addr().unwrap();
+            assert!(active_tcp(std::process::id()).unwrap());
             let observation = observe(endpoint);
             assert_eq!(observation["status"], "observed", "{observation}");
             assert!(

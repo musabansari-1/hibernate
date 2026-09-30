@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 const root=resolve('.validation/chrome-cold-restore'),run=join(root,'run-'+Date.now()),project=join(run,'project'),profile=join(run,'chrome');await mkdir(project,{recursive:true});await writeFile(join(project,'README.txt'),'cold restore fixture\n');
 const versions=(await readdir(join(process.env.LOCALAPPDATA,'ms-playwright'))).filter(v=>/^chromium-\d+$/.test(v)).sort().reverse();
 const chromeExe=join(process.env.LOCALAPPDATA,'ms-playwright',versions[0],'chrome-win64','chrome.exe'),extension=process.env.HIBERNATE_TEST_CHROME_EXTENSION_DIR??resolve('extensions/chrome/dist');
-const host=resolve('native/target/debug/hibernate-host.exe'),desktopExe=process.env.HIBERNATE_TEST_DESKTOP??resolve('apps/desktop/src-tauri/target/release/project-hibernate.exe');
+const host=process.env.HIBERNATE_TEST_HOST??resolve('native/target/debug/hibernate-host.exe'),desktopExe=process.env.HIBERNATE_TEST_DESKTOP??resolve('apps/desktop/src-tauri/target/release/project-hibernate.exe');
 const desktopPort=await new Promise(r=>{const s=netServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
 const chromePort=await new Promise(r=>{const s=netServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>r(p));});});
 const server=createServer((_,res)=>res.end('<title>Cold start fixture</title><p>fixture</p>'));await new Promise(r=>server.listen(0,'127.0.0.1',r));const fixtureUrl=`http://127.0.0.1:${server.address().port}/`;
